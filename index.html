@@ -47,6 +47,14 @@
                     </select>
                 </div>
                 <div style="display:flex; gap:8px; align-items:center;">
+                    <div class="category-filter" style="display:flex; gap:8px; align-items:center;">
+                        <select id="locationFilterParent" onchange="onLocationFilterChange()" style="padding:8px 10px; border-radius:8px; background:var(--input-bg); color:var(--text-primary); border:2px solid var(--border-color);">
+                            <option value="all">Todos os Locais</option>
+                        </select>
+                        <select id="locationFilterChild" onchange="filterItems()" style="padding:8px 10px; border-radius:8px; background:var(--input-bg); color:var(--text-primary); border:2px solid var(--border-color);">
+                            <option value="all">Todos os Sub-Locais</option>
+                        </select>
+                    </div>
                     <label for="groupBy" style="color:var(--text-secondary); font-size:14px;">Agrupar por:</label>
                     <select id="groupBy" onchange="renderItems()" style="padding:8px 10px; border-radius:8px; background:var(--input-bg); color:var(--text-primary); border:2px solid var(--border-color);">
                         <option value="none">Nenhum</option>

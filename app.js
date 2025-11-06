@@ -41,6 +41,7 @@ function initApp() {
     // Carregar locais
     loadLocations();
     populateLocationSelects();
+    populateLocationFilters();
 
     // groupBy default listener
     const groupEl = document.getElementById('groupBy');
@@ -239,6 +240,7 @@ function addLocationPrompt() {
     locations.push({ name, subs: [] });
     saveLocations();
     populateLocationSelects(name, '');
+    populateLocationFilters();
 }
 
 function addSublocationPrompt() {
@@ -253,6 +255,81 @@ function addSublocationPrompt() {
     parent.subs.push(subName);
     saveLocations();
     populateLocationSelects(parentName, subName);
+    populateLocationFilters();
+}
+
+function populateLocationFilters(selectedParent, selectedChild) {
+    const parentSel = document.getElementById('locationFilterParent');
+    const childSel = document.getElementById('locationFilterChild');
+    if (!parentSel || !childSel) return;
+
+    parentSel.innerHTML = '';
+    childSel.innerHTML = '';
+
+    const optAll = document.createElement('option');
+    optAll.value = 'all';
+    optAll.textContent = 'Todos os Locais';
+    parentSel.appendChild(optAll);
+
+    locations.forEach(loc => {
+        const o = document.createElement('option');
+        o.value = loc.name;
+        o.textContent = loc.name;
+        parentSel.appendChild(o);
+    });
+
+    if (selectedParent) parentSel.value = selectedParent;
+
+    // preencher child
+    const selectedParentName = selectedParent || parentSel.value;
+    const parent = locations.find(l => l.name === selectedParentName);
+
+    const optAllChild = document.createElement('option');
+    optAllChild.value = 'all';
+    optAllChild.textContent = 'Todos os Sub-Locais';
+    childSel.appendChild(optAllChild);
+
+    (parent ? parent.subs : []).forEach(s => {
+        const oc = document.createElement('option');
+        oc.value = s;
+        oc.textContent = s;
+        childSel.appendChild(oc);
+    });
+
+    if (selectedChild) childSel.value = selectedChild;
+
+    parentSel.onchange = () => {
+        const p = locations.find(l => l.name === parentSel.value);
+        childSel.innerHTML = '';
+        childSel.appendChild(optAllChild.cloneNode(true));
+        (p ? p.subs : []).forEach(s => {
+            const oc = document.createElement('option');
+            oc.value = s;
+            oc.textContent = s;
+            childSel.appendChild(oc);
+        });
+        filterItems();
+    };
+}
+
+function onLocationFilterChange() {
+    // update child options and then filter
+    const parentSel = document.getElementById('locationFilterParent');
+    const childSel = document.getElementById('locationFilterChild');
+    if (!parentSel || !childSel) return;
+    const p = locations.find(l => l.name === parentSel.value);
+    childSel.innerHTML = '';
+    const optAllChild = document.createElement('option');
+    optAllChild.value = 'all';
+    optAllChild.textContent = 'Todos os Sub-Locais';
+    childSel.appendChild(optAllChild);
+    (p ? p.subs : []).forEach(s => {
+        const oc = document.createElement('option');
+        oc.value = s;
+        oc.textContent = s;
+        childSel.appendChild(oc);
+    });
+    filterItems();
 }
 
 // Funções de LocalStorage
@@ -456,6 +533,9 @@ function showAddItemModal() {
     currentEditId = null;
     document.getElementById('modalTitle').textContent = 'Adicionar Item';
     document.getElementById('itemForm').reset();
+    // Garantir que os selects de localização estão populados ao abrir modal de adicionar
+    populateLocationSelects('', '');
+    populateLocationFilters();
     document.getElementById('itemModal').classList.add('active');
 }
 
@@ -469,7 +549,33 @@ function showEditItemModal(id) {
     document.getElementById('itemCategory').value = item.category;
     document.getElementById('itemQuantity').value = item.quantity;
     document.getElementById('itemMinStock').value = item.minStock;
-    document.getElementById('itemLocation').value = item.location || '';
+    // Determinar parent/child (compatível com dados antigos que têm apenas 'location')
+    function parseLocationString(s) {
+        if (!s) return { parent: '', child: '' };
+        // tentar vários separadores comuns
+        const seps = [' / ', '/', ' - ', ' -', '- ', '-', ','];
+        let parts = [s];
+        for (const sep of seps) {
+            if (s.includes(sep)) { parts = s.split(sep).map(p => p.trim()).filter(Boolean); break; }
+        }
+        if (parts.length === 1) return { parent: '', child: parts[0] };
+        return { parent: parts[0], child: parts.slice(1).join(' / ') };
+    }
+
+    let parentVal = item.locationParent || '';
+    let childVal = item.locationChild || '';
+    if (!parentVal && !childVal && item.location) {
+        const parsed = parseLocationString(item.location);
+        parentVal = parsed.parent;
+        childVal = parsed.child;
+    }
+
+    // Popular selects de localização e escolher os valores existentes
+    populateLocationSelects(parentVal, childVal);
+    const parentSel = document.getElementById('itemLocationParent');
+    const childSel = document.getElementById('itemLocationChild');
+    if (parentSel) parentSel.value = parentVal || '';
+    if (childSel) childSel.value = childVal || '';
     document.getElementById('itemNotes').value = item.notes || '';
     document.getElementById('itemModal').classList.add('active');
 }
