@@ -23,19 +23,50 @@ document.addEventListener('DOMContentLoaded', () => {
             login();
         }
     });
+
+    // Listener para o botão de login (mais robusto que onclick inline)
+    const loginBtn = document.getElementById('loginButton');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            login();
+        });
+    }
 });
 
 // Funções de Login
 function showLoginScreen() {
     console.log('Showing login screen');
-    document.getElementById('loginScreen').classList.add('active');
-    document.getElementById('inventoryScreen').classList.remove('active');
+    const loginEl = document.getElementById('loginScreen');
+    const invEl = document.getElementById('inventoryScreen');
+    if (loginEl) {
+        loginEl.classList.add('active');
+        loginEl.style.display = 'block';
+        loginEl.style.visibility = 'visible';
+        loginEl.style.zIndex = '9999';
+    }
+    if (invEl) {
+        invEl.classList.remove('active');
+        invEl.style.display = 'none';
+    }
 }
 
 function showInventoryScreen() {
     console.log('Showing inventory screen');
-    document.getElementById('loginScreen').classList.remove('active');
-    document.getElementById('inventoryScreen').classList.add('active');
+    const loginEl = document.getElementById('loginScreen');
+    const invEl = document.getElementById('inventoryScreen');
+    if (loginEl) {
+        loginEl.classList.remove('active');
+        // Forçar esconder, independentemente do CSS ou cache
+        loginEl.style.display = 'none';
+        loginEl.style.visibility = 'hidden';
+        loginEl.style.zIndex = '';
+    }
+    if (invEl) {
+        invEl.classList.add('active');
+        invEl.style.display = 'block';
+        invEl.style.visibility = 'visible';
+    }
     renderItems();
     updateStats();
 }
