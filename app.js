@@ -2,6 +2,7 @@
 let inventory = [];
 let currentEditId = null;
 let isLoggedIn = false;
+let locations = [];
 
 // Inicialização
 // Inicialização segura: se o DOM já estiver carregado, executa imediatamente.
@@ -36,6 +37,14 @@ function initApp() {
             login();
         });
     }
+
+    // Carregar locais
+    loadLocations();
+    populateLocationSelects();
+
+    // groupBy default listener
+    const groupEl = document.getElementById('groupBy');
+    if (groupEl) groupEl.addEventListener('change', () => renderItems());
 }
 
 if (document.readyState === 'loading') {
@@ -146,11 +155,125 @@ function logout() {
     }
 }
 
+// Localizações
+function loadLocations() {
+    const saved = localStorage.getItem('locations');
+    if (saved) {
+        try { locations = JSON.parse(saved); } catch(e) { locations = []; }
+    } else {
+        // Exemplo inicial
+        locations = [
+            { name: 'Armário', subs: ['Gaveta 1', 'Gaveta 2'] },
+            { name: 'Gavetas', subs: ['Gaveta A', 'Gaveta B'] },
+            { name: 'Caixa Módulos', subs: [] },
+            { name: 'Prateleira Arduinos', subs: [] }
+        ];
+        saveLocations();
+    }
+}
+
+function saveLocations() {
+    localStorage.setItem('locations', JSON.stringify(locations));
+}
+
+function populateLocationSelects(selectedParent, selectedChild) {
+    const parentSel = document.getElementById('itemLocationParent');
+    const childSel = document.getElementById('itemLocationChild');
+    if (!parentSel || !childSel) return;
+
+    // Limpar
+    parentSel.innerHTML = '';
+    childSel.innerHTML = '';
+
+    // Opcao vazia
+    const optEmpty = document.createElement('option');
+    optEmpty.value = '';
+    optEmpty.textContent = '— Nenhum —';
+    parentSel.appendChild(optEmpty);
+
+    locations.forEach(loc => {
+        const o = document.createElement('option');
+        o.value = loc.name;
+        o.textContent = loc.name;
+        parentSel.appendChild(o);
+    });
+
+    if (selectedParent) parentSel.value = selectedParent;
+
+    // Preencher subs do parent selecionado
+    const parent = locations.find(l => l.name === (selectedParent || parentSel.value));
+    const subs = parent ? parent.subs : [];
+
+    const optEmptyChild = document.createElement('option');
+    optEmptyChild.value = '';
+    optEmptyChild.textContent = '— Nenhum —';
+    childSel.appendChild(optEmptyChild);
+
+    subs.forEach(s => {
+        const oc = document.createElement('option');
+        oc.value = s;
+        oc.textContent = s;
+        childSel.appendChild(oc);
+    });
+
+    if (selectedChild) childSel.value = selectedChild;
+
+    // Atualizar subs quando mudar parent
+    parentSel.onchange = () => {
+        const p = locations.find(l => l.name === parentSel.value);
+        childSel.innerHTML = '';
+        childSel.appendChild(optEmptyChild.cloneNode(true));
+        (p ? p.subs : []).forEach(s => {
+            const oc = document.createElement('option');
+            oc.value = s;
+            oc.textContent = s;
+            childSel.appendChild(oc);
+        });
+    };
+}
+
+function addLocationPrompt() {
+    const name = prompt('Nome do novo local (ex: Armário, Caixa):');
+    if (!name) return;
+    if (locations.find(l => l.name === name)) { alert('Local já existe'); return; }
+    locations.push({ name, subs: [] });
+    saveLocations();
+    populateLocationSelects(name, '');
+}
+
+function addSublocationPrompt() {
+    const parentSel = document.getElementById('itemLocationParent');
+    if (!parentSel || !parentSel.value) { alert('Selecione primeiro um Local'); return; }
+    const parentName = parentSel.value;
+    const subName = prompt('Nome do novo sub-local (ex: Gaveta 1):');
+    if (!subName) return;
+    const parent = locations.find(l => l.name === parentName);
+    if (!parent) return;
+    if (parent.subs.includes(subName)) { alert('Sub-local já existe'); return; }
+    parent.subs.push(subName);
+    saveLocations();
+    populateLocationSelects(parentName, subName);
+}
+
 // Funções de LocalStorage
 function loadInventory() {
     const saved = localStorage.getItem('inventory');
     if (saved) {
         inventory = JSON.parse(saved);
+        // Normalizar campos de localização (compatibilidade com versões antigas)
+        inventory = inventory.map(item => {
+            if (!('locationParent' in item) && 'location' in item) {
+                // tentar separar por ' / '
+                const parts = (item.location || '').split('/').map(s => s.trim()).filter(Boolean);
+                return Object.assign({}, item, {
+                    locationParent: parts.length > 1 ? parts[0] : '',
+                    locationChild: parts.length > 1 ? parts.slice(1).join(' / ') : (parts[0] || '')
+                });
+            }
+            item.locationParent = item.locationParent || '';
+            item.locationChild = item.locationChild || '';
+            return item;
+        });
     } else {
         // Dados de exemplo iniciais
         inventory = [
@@ -366,7 +489,8 @@ function saveItem(event) {
         category: document.getElementById('itemCategory').value,
         quantity: parseInt(document.getElementById('itemQuantity').value),
         minStock: parseInt(document.getElementById('itemMinStock').value),
-        location: document.getElementById('itemLocation').value.trim(),
+        locationParent: document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '',
+        locationChild: document.getElementById('itemLocationChild') ? document.getElementById('itemLocationChild').value : '',
         notes: document.getElementById('itemNotes').value.trim(),
         createdAt: currentEditId ? inventory.find(i => i.id === currentEditId).createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -417,12 +541,15 @@ function renderItems() {
     const emptyMessage = document.getElementById('emptyMessage');
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
     const categoryFilter = document.getElementById('categoryFilter').value;
+    const groupBy = (document.getElementById('groupBy') ? document.getElementById('groupBy').value : 'none');
     
-    // Filtrar items
+    // Filtrar items (incluir parent/child location)
     let filteredItems = inventory.filter(item => {
-        const matchesSearch = item.name.toLowerCase().includes(searchTerm) ||
-                            (item.location && item.location.toLowerCase().includes(searchTerm)) ||
-                            (item.notes && item.notes.toLowerCase().includes(searchTerm));
+        const nameMatch = item.name && item.name.toLowerCase().includes(searchTerm);
+        const notesMatch = item.notes && item.notes.toLowerCase().includes(searchTerm);
+        const parentMatch = item.locationParent && item.locationParent.toLowerCase().includes(searchTerm);
+        const childMatch = item.locationChild && item.locationChild.toLowerCase().includes(searchTerm);
+        const matchesSearch = nameMatch || notesMatch || parentMatch || childMatch;
         const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
         return matchesSearch && matchesCategory;
     });
@@ -437,40 +564,18 @@ function renderItems() {
     
     // Ordenar por nome
     filteredItems.sort((a, b) => a.name.localeCompare(b.name));
-    
-    container.innerHTML = filteredItems.map(item => {
-        const categoryIcons = {
-            ferramentas: '🔨',
-            eletrico: '⚡',
-            eletronico: '🔌',
-            placas: '🖥️',
-            ferragens: '🔩',
-            outros: '📦'
-        };
-        
-        const categoryNames = {
-            ferramentas: 'Ferramentas',
-            eletrico: 'Material Elétrico',
-            eletronico: 'Componentes Eletrônicos',
-            placas: 'Placas e Arduinos',
-            ferragens: 'Ferragens',
-            outros: 'Outros'
-        };
-        
+
+    // Render helper
+    function renderItemCard(item) {
+        const categoryIcons = { ferramentas: '🔨', eletrico: '⚡', eletronico: '🔌', placas: '🖥️', ferragens: '🔩', outros: '📦' };
+        const categoryNames = { ferramentas: 'Ferramentas', eletrico: 'Material Elétrico', eletronico: 'Componentes Eletrônicos', placas: 'Placas e Arduinos', ferragens: 'Ferragens', outros: 'Outros' };
         const isLowStock = item.quantity <= item.minStock && item.quantity > 0;
         const isEmpty = item.quantity === 0;
-        
         let stockClass = '';
         let stockBadge = '';
-        
-        if (isEmpty) {
-            stockClass = 'empty';
-            stockBadge = '<span class="stock-badge empty">SEM STOCK</span>';
-        } else if (isLowStock) {
-            stockClass = 'low';
-            stockBadge = '<span class="stock-badge low">STOCK BAIXO</span>';
-        }
-        
+        if (isEmpty) { stockClass = 'empty'; stockBadge = '<span class="stock-badge empty">SEM STOCK</span>'; }
+        else if (isLowStock) { stockClass = 'low'; stockBadge = '<span class="stock-badge low">STOCK BAIXO</span>'; }
+        const displayLocation = (item.locationParent ? item.locationParent + (item.locationChild ? ' / ' + item.locationChild : '') : (item.locationChild || ''));
         return `
             <div class="item-card">
                 <div class="item-header">
@@ -479,36 +584,36 @@ function renderItems() {
                         <div class="item-category">${categoryIcons[item.category]} ${categoryNames[item.category]}</div>
                     </div>
                 </div>
-                
                 <div class="item-details">
-                    <div class="item-detail">
-                        <span>Quantidade:</span>
-                        <span class="stock-quantity ${stockClass}">${item.quantity} ${stockBadge}</span>
-                    </div>
-                    <div class="item-detail">
-                        <span>Stock Mínimo:</span>
-                        <span>${item.minStock}</span>
-                    </div>
-                    ${item.location ? `
-                        <div class="item-location">📍 ${item.location}</div>
-                    ` : ''}
-                    ${item.notes ? `
-                        <div class="item-notes">💬 ${item.notes}</div>
-                    ` : ''}
+                    <div class="item-detail"><span>Quantidade:</span><span class="stock-quantity ${stockClass}">${item.quantity} ${stockBadge}</span></div>
+                    <div class="item-detail"><span>Stock Mínimo:</span><span>${item.minStock}</span></div>
+                    ${displayLocation ? `\n                        <div class="item-location">📍 ${displayLocation}</div>\n                    ` : ''}
+                    ${item.notes ? `\n                        <div class="item-notes">💬 ${item.notes}</div>\n                    ` : ''}
                 </div>
-                
-                <div class="stock-controls">
-                    <button class="stock-btn minus" onclick="adjustStock(${item.id}, -1)" ${item.quantity === 0 ? 'disabled' : ''}>−</button>
-                    <button class="stock-btn plus" onclick="adjustStock(${item.id}, 1)">+</button>
-                </div>
-                
-                <div class="item-actions">
-                    <button class="btn-edit" onclick="showEditItemModal(${item.id})">✏️ Editar</button>
-                    <button class="btn-delete" onclick="deleteItem(${item.id})">🗑️ Eliminar</button>
-                </div>
+                <div class="stock-controls"><button class="stock-btn minus" onclick="adjustStock(${item.id}, -1)" ${item.quantity === 0 ? 'disabled' : ''}>−</button><button class="stock-btn plus" onclick="adjustStock(${item.id}, 1)">+</button></div>
+                <div class="item-actions"><button class="btn-edit" onclick="showEditItemModal(${item.id})">✏️ Editar</button><button class="btn-delete" onclick="deleteItem(${item.id})">🗑️ Eliminar</button></div>
             </div>
         `;
-    }).join('');
+    }
+
+    // Agrupar se necessário
+    if (groupBy && groupBy !== 'none') {
+        const groups = {};
+        filteredItems.forEach(item => {
+            const key = groupBy === 'locationParent' ? (item.locationParent || '— Sem Local —') : (item.locationChild || '— Sem Sub-Local —');
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(item);
+        });
+        let html = '';
+        Object.keys(groups).forEach(g => {
+            html += `<h3 style="margin-top:18px; color:var(--text-primary);">${g}</h3>`;
+            groups[g].forEach(it => { html += renderItemCard(it); });
+        });
+        container.innerHTML = html;
+        return;
+    }
+
+    container.innerHTML = filteredItems.map(item => renderItemCard(item)).join('');
 }
 
 function filterItems() {
