@@ -42,6 +42,13 @@ function login() {
     const password = document.getElementById('passwordInput').value;
     const errorElement = document.getElementById('loginError');
     
+    // Verificar se CONFIG está definido
+    if (typeof CONFIG === 'undefined' || !CONFIG.PASSWORD) {
+        errorElement.textContent = '❌ Erro: Ficheiro de configuração não carregado';
+        console.error('CONFIG não está definido. Certifique-se que config.js está carregado.');
+        return;
+    }
+    
     if (password === CONFIG.PASSWORD) {
         isLoggedIn = true;
         sessionStorage.setItem('isLoggedIn', 'true');

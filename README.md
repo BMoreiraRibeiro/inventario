@@ -20,29 +20,40 @@ Uma aplicação web simples e responsiva para gerir o seu inventário pessoal de
 ### Localmente
 
 1. Clone ou faça download deste repositório
-2. Abra o ficheiro `index.html` num navegador web
-3. Use a password padrão: `meuinventario123` (pode alterar no ficheiro `config.js`)
+2. **IMPORTANTE**: Copie o ficheiro `config.example.js` para `config.js`:
+   ```bash
+   cp config.example.js config.js
+   ```
+3. Edite `config.js` e defina a sua password
+4. Abra o ficheiro `index.html` num navegador web
 
-### Alterar a Password
+### Configurar a Password
 
-1. Abra o ficheiro `config.js`
-2. Altere o valor da propriedade `PASSWORD`:
+1. Copie `config.example.js` para `config.js` (se ainda não o fez)
+2. Abra o ficheiro `config.js`
+3. Altere o valor da propriedade `PASSWORD`:
 ```javascript
 const CONFIG = {
-    PASSWORD: 'a_sua_nova_password'
+    PASSWORD: 'a_sua_password_secreta'
 };
 ```
+
+**Nota**: O ficheiro `config.js` está no `.gitignore` para não expor a sua password no repositório público.
 
 ## 🌐 Deploy no GitHub Pages
 
 ### Passo 1: Criar Repositório
 
 1. Crie um novo repositório no GitHub
-2. Faça upload de todos os ficheiros:
+2. **IMPORTANTE**: Antes de fazer upload, configure a sua password:
+   - Copie `config.example.js` para `config.js`
+   - Edite `config.js` com a sua password
+3. Faça upload de todos os ficheiros (o `config.js` não será incluído devido ao `.gitignore`):
    - `index.html`
    - `styles.css`
    - `app.js`
-   - `config.js`
+   - `config.example.js`
+   - `.gitignore`
    - `README.md`
 
 ### Passo 2: Ativar GitHub Pages
@@ -51,7 +62,18 @@ const CONFIG = {
 2. No menu lateral, clique em **Pages**
 3. Em **Source**, selecione a branch `main` (ou `master`)
 4. Clique em **Save**
-5. Aguarde alguns minutos e aceda ao URL fornecido
+5. **IMPORTANTE**: Crie o ficheiro `config.js` no GitHub:
+   - Vá para o repositório
+   - Clique em "Add file" → "Create new file"
+   - Nome do ficheiro: `config.js`
+   - Conteúdo:
+     ```javascript
+     const CONFIG = {
+         PASSWORD: 'a_sua_password_aqui'
+     };
+     ```
+   - Commit do ficheiro
+6. Aguarde alguns minutos e aceda ao URL fornecido
 
 A sua aplicação estará disponível em: `https://<seu-usuario>.github.io/<nome-do-repositorio>/`
 
