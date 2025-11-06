@@ -27,11 +27,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Funções de Login
 function showLoginScreen() {
+    console.log('Showing login screen');
     document.getElementById('loginScreen').classList.add('active');
     document.getElementById('inventoryScreen').classList.remove('active');
 }
 
 function showInventoryScreen() {
+    console.log('Showing inventory screen');
     document.getElementById('loginScreen').classList.remove('active');
     document.getElementById('inventoryScreen').classList.add('active');
     renderItems();
@@ -39,8 +41,13 @@ function showInventoryScreen() {
 }
 
 function login() {
+    console.log('Login function called');
     const password = document.getElementById('passwordInput').value;
     const errorElement = document.getElementById('loginError');
+    
+    console.log('Password entered:', password ? '***' : 'empty');
+    console.log('CONFIG defined:', typeof CONFIG !== 'undefined');
+    console.log('Expected password:', CONFIG ? '***' : 'undefined');
     
     // Verificar se CONFIG está definido
     if (typeof CONFIG === 'undefined' || !CONFIG.PASSWORD) {
@@ -50,11 +57,14 @@ function login() {
     }
     
     if (password === CONFIG.PASSWORD) {
+        console.log('Password correct! Logging in...');
         isLoggedIn = true;
         sessionStorage.setItem('isLoggedIn', 'true');
         errorElement.textContent = '';
         showInventoryScreen();
+        console.log('Login screen should be hidden now');
     } else {
+        console.log('Password incorrect');
         errorElement.textContent = '❌ Password incorreta';
         document.getElementById('passwordInput').value = '';
         document.getElementById('passwordInput').focus();
@@ -75,6 +85,176 @@ function loadInventory() {
     const saved = localStorage.getItem('inventory');
     if (saved) {
         inventory = JSON.parse(saved);
+    } else {
+        // Dados de exemplo iniciais
+        inventory = [
+            {
+                id: 1,
+                name: 'Resistências 220Ω',
+                category: 'eletronico',
+                quantity: 150,
+                minStock: 20,
+                location: 'Gaveta 1 - Componentes',
+                notes: '1/4W, 5% tolerância',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 2,
+                name: 'Resistências 10kΩ',
+                category: 'eletronico',
+                quantity: 200,
+                minStock: 20,
+                location: 'Gaveta 1 - Componentes',
+                notes: '1/4W, 5% tolerância',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 3,
+                name: 'LEDs Vermelhos 5mm',
+                category: 'eletronico',
+                quantity: 50,
+                minStock: 10,
+                location: 'Gaveta 1 - LEDs',
+                notes: '3V, 20mA',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 4,
+                name: 'LEDs Azuis 5mm',
+                category: 'eletronico',
+                quantity: 30,
+                minStock: 10,
+                location: 'Gaveta 1 - LEDs',
+                notes: '3.2V, 20mA',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 5,
+                name: 'LEDs Verdes 5mm',
+                category: 'eletronico',
+                quantity: 40,
+                minStock: 10,
+                location: 'Gaveta 1 - LEDs',
+                notes: '3.2V, 20mA',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 6,
+                name: 'LEDs Brancos 5mm',
+                category: 'eletronico',
+                quantity: 25,
+                minStock: 10,
+                location: 'Gaveta 1 - LEDs',
+                notes: '3.2V, 20mA',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 7,
+                name: 'RTC DS3231',
+                category: 'eletronico',
+                quantity: 5,
+                minStock: 2,
+                location: 'Caixa Módulos',
+                notes: 'Alta precisão com bateria',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 8,
+                name: 'RTC DS1307',
+                category: 'eletronico',
+                quantity: 3,
+                minStock: 1,
+                location: 'Caixa Módulos',
+                notes: 'Com bateria CR2032',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 9,
+                name: 'Arduino Uno R3',
+                category: 'placas',
+                quantity: 2,
+                minStock: 1,
+                location: 'Prateleira Arduinos',
+                notes: 'ATmega328P, clone',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 10,
+                name: 'Arduino Nano',
+                category: 'placas',
+                quantity: 4,
+                minStock: 2,
+                location: 'Prateleira Arduinos',
+                notes: 'ATmega328P, USB mini',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 11,
+                name: 'Chip ATmega328P-PU',
+                category: 'eletronico',
+                quantity: 8,
+                minStock: 3,
+                location: 'Gaveta 2 - ICs',
+                notes: 'DIP-28, com bootloader Arduino',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 12,
+                name: 'Módulo Carregador TP4056 USB-C',
+                category: 'eletronico',
+                quantity: 6,
+                minStock: 2,
+                location: 'Caixa Módulos',
+                notes: 'Para baterias Li-ion 3.7V, 1A',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 13,
+                name: 'Capacitores Cerâmicos 100nF',
+                category: 'eletronico',
+                quantity: 100,
+                minStock: 20,
+                location: 'Gaveta 1 - Componentes',
+                notes: '50V',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 14,
+                name: 'Capacitores Eletrolíticos 100µF',
+                category: 'eletronico',
+                quantity: 30,
+                minStock: 10,
+                location: 'Gaveta 1 - Componentes',
+                notes: '25V',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            },
+            {
+                id: 15,
+                name: 'Transistores BC547',
+                category: 'eletronico',
+                quantity: 50,
+                minStock: 10,
+                location: 'Gaveta 2 - Semicondutores',
+                notes: 'NPN, TO-92',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }
+        ];
+        saveInventory();
     }
 }
 

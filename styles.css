@@ -6,19 +6,21 @@
 }
 
 :root {
-    --primary-color: #2563eb;
-    --primary-dark: #1d4ed8;
-    --secondary-color: #64748b;
-    --success-color: #22c55e;
+    --primary-color: #3b82f6;
+    --primary-dark: #2563eb;
+    --secondary-color: #6b7280;
+    --success-color: #10b981;
     --warning-color: #f59e0b;
     --danger-color: #ef4444;
-    --bg-color: #f8fafc;
-    --card-bg: #ffffff;
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --border-color: #e2e8f0;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border-color: #334155;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4);
+    --input-bg: #0f172a;
+    --hover-bg: #334155;
 }
 
 body {
@@ -30,11 +32,11 @@ body {
 
 /* Telas */
 .screen {
-    display: none;
+    display: none !important;
 }
 
 .screen.active {
-    display: block;
+    display: block !important;
 }
 
 /* Login Screen */
@@ -43,7 +45,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 100%);
     padding: 20px;
 }
 
@@ -55,6 +57,7 @@ body {
     width: 100%;
     max-width: 400px;
     text-align: center;
+    border: 1px solid var(--border-color);
 }
 
 .login-container h1 {
@@ -71,6 +74,8 @@ body {
     border-radius: 8px;
     font-size: 16px;
     transition: border-color 0.3s;
+    background: var(--input-bg);
+    color: var(--text-primary);
 }
 
 .login-form input:focus {
@@ -113,6 +118,7 @@ header {
     position: sticky;
     top: 0;
     z-index: 100;
+    border-bottom: 1px solid var(--border-color);
 }
 
 header h1 {
@@ -162,6 +168,8 @@ header h1 {
     border: 2px solid var(--border-color);
     border-radius: 8px;
     font-size: 15px;
+    background: var(--input-bg);
+    color: var(--text-primary);
 }
 
 .search-box input:focus {
@@ -174,7 +182,8 @@ header h1 {
     border: 2px solid var(--border-color);
     border-radius: 8px;
     font-size: 15px;
-    background: white;
+    background: var(--input-bg);
+    color: var(--text-primary);
     cursor: pointer;
 }
 
@@ -230,6 +239,7 @@ header h1 {
     border-radius: 12px;
     box-shadow: var(--shadow);
     text-align: center;
+    border: 1px solid var(--border-color);
 }
 
 .stat-card h3 {
@@ -257,11 +267,13 @@ header h1 {
     box-shadow: var(--shadow);
     transition: transform 0.2s, box-shadow 0.2s;
     position: relative;
+    border: 1px solid var(--border-color);
 }
 
 .item-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-lg);
+    border-color: var(--primary-color);
 }
 
 .item-header {
@@ -281,11 +293,12 @@ header h1 {
 .item-category {
     display: inline-block;
     padding: 4px 12px;
-    background: var(--bg-color);
+    background: var(--input-bg);
     color: var(--text-secondary);
     border-radius: 12px;
     font-size: 13px;
     margin-bottom: 12px;
+    border: 1px solid var(--border-color);
 }
 
 .item-details {
@@ -332,13 +345,15 @@ header h1 {
 }
 
 .stock-badge.low {
-    background: #fef3c7;
-    color: #92400e;
+    background: #451a03;
+    color: #fbbf24;
+    border: 1px solid #78350f;
 }
 
 .stock-badge.empty {
-    background: #fee2e2;
-    color: #991b1b;
+    background: #450a0a;
+    color: #fca5a5;
+    border: 1px solid #7f1d1d;
 }
 
 .item-location {
@@ -382,13 +397,15 @@ header h1 {
 }
 
 .stock-btn.minus {
-    background: #fee2e2;
-    color: #991b1b;
+    background: #450a0a;
+    color: #fca5a5;
+    border: 1px solid #7f1d1d;
 }
 
 .stock-btn.plus {
-    background: #dcfce7;
-    color: #166534;
+    background: #052e16;
+    color: #86efac;
+    border: 1px solid #14532d;
 }
 
 .btn-edit, .btn-delete {
@@ -465,6 +482,7 @@ header h1 {
     max-width: 500px;
     position: relative;
     box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
 }
 
 .close {
@@ -509,6 +527,8 @@ header h1 {
     font-size: 15px;
     font-family: inherit;
     transition: border-color 0.3s;
+    background: var(--input-bg);
+    color: var(--text-primary);
 }
 
 .form-group input:focus,
