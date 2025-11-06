@@ -4,7 +4,8 @@ let currentEditId = null;
 let isLoggedIn = false;
 
 // Inicialização
-document.addEventListener('DOMContentLoaded', () => {
+// Inicialização segura: se o DOM já estiver carregado, executa imediatamente.
+function initApp() {
     // Verificar se já está logado
     isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
     
@@ -18,11 +19,14 @@ document.addEventListener('DOMContentLoaded', () => {
     loadInventory();
     
     // Listener para Enter no login
-    document.getElementById('passwordInput').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            login();
-        }
-    });
+    const pwd = document.getElementById('passwordInput');
+    if (pwd) {
+        pwd.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                login();
+            }
+        });
+    }
 
     // Listener para o botão de login (mais robusto que onclick inline)
     const loginBtn = document.getElementById('loginButton');
@@ -32,7 +36,14 @@ document.addEventListener('DOMContentLoaded', () => {
             login();
         });
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    // DOM já carregado — inicializar imediatamente
+    initApp();
+}
 
 // Funções de Login
 function showLoginScreen() {
@@ -103,11 +114,35 @@ function login() {
 }
 
 function logout() {
-    if (confirm('Tem certeza que deseja sair?')) {
+    console.log('Logout requested');
+    if (!confirm('Tem certeza que deseja sair?')) return;
+    try {
         isLoggedIn = false;
         sessionStorage.removeItem('isLoggedIn');
-        showLoginScreen();
-        document.getElementById('passwordInput').value = '';
+        // Esconder interface de inventário e mostrar login de forma forçada
+        const loginEl = document.getElementById('loginScreen');
+        const invEl = document.getElementById('inventoryScreen');
+        if (invEl) {
+            invEl.classList.remove('active');
+            invEl.style.display = 'none';
+            invEl.style.visibility = 'hidden';
+        }
+        if (loginEl) {
+            loginEl.classList.add('active');
+            loginEl.style.display = 'block';
+            loginEl.style.visibility = 'visible';
+            loginEl.style.zIndex = '9999';
+        }
+        const pwd = document.getElementById('passwordInput');
+        if (pwd) pwd.value = '';
+        console.log('Logged out — showing login screen');
+        // Garantir estado limpo
+        // reload para evitar problemas de cache/camadas sobrepostas
+        setTimeout(() => {
+            try { sessionStorage.removeItem('isLoggedIn'); } catch(e){}
+        }, 50);
+    } catch (err) {
+        console.error('Erro durante logout:', err);
     }
 }
 
