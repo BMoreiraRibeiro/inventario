@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventário Pessoal</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Tela de Login -->
+    <div id="loginScreen" class="screen active">
+        <div class="login-container">
+            <h1>🔧 Inventário Pessoal</h1>
+            <div class="login-form">
+                <input type="password" id="passwordInput" placeholder="Password" autofocus>
+                <button onclick="login()">Entrar</button>
+                <p id="loginError" class="error-message"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela Principal do Inventário -->
+    <div id="inventoryScreen" class="screen">
+        <header>
+            <h1>📦 Inventário Pessoal</h1>
+            <button onclick="logout()" class="logout-btn">Sair</button>
+        </header>
+
+        <div class="container">
+            <!-- Filtros e Busca -->
+            <div class="controls">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="🔍 Buscar item..." oninput="filterItems()">
+                </div>
+                <div class="category-filter">
+                    <select id="categoryFilter" onchange="filterItems()">
+                        <option value="all">Todas as Categorias</option>
+                        <option value="ferramentas">🔨 Ferramentas</option>
+                        <option value="eletrico">⚡ Material Elétrico</option>
+                        <option value="eletronico">🔌 Componentes Eletrônicos</option>
+                        <option value="placas">🖥️ Placas e Arduinos</option>
+                        <option value="ferragens">🔩 Ferragens</option>
+                        <option value="outros">📦 Outros</option>
+                    </select>
+                </div>
+                <button onclick="showAddItemModal()" class="btn-primary">➕ Adicionar Item</button>
+            </div>
+
+            <!-- Estatísticas -->
+            <div class="stats">
+                <div class="stat-card">
+                    <h3 id="totalItems">0</h3>
+                    <p>Total de Itens</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="totalCategories">0</h3>
+                    <p>Categorias</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="lowStock">0</h3>
+                    <p>Stock Baixo</p>
+                </div>
+            </div>
+
+            <!-- Lista de Itens -->
+            <div id="itemsList" class="items-grid">
+                <!-- Items serão adicionados aqui dinamicamente -->
+            </div>
+
+            <!-- Mensagem quando não há itens -->
+            <div id="emptyMessage" class="empty-message">
+                <p>📭 Nenhum item encontrado</p>
+                <p>Adicione seu primeiro item clicando no botão acima</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar/Editar Item -->
+    <div id="itemModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle">Adicionar Item</h2>
+            <form id="itemForm" onsubmit="saveItem(event)">
+                <div class="form-group">
+                    <label for="itemName">Nome do Item *</label>
+                    <input type="text" id="itemName" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="itemCategory">Categoria *</label>
+                    <select id="itemCategory" required>
+                        <option value="">Selecione...</option>
+                        <option value="ferramentas">🔨 Ferramentas</option>
+                        <option value="eletrico">⚡ Material Elétrico</option>
+                        <option value="eletronico">🔌 Componentes Eletrônicos</option>
+                        <option value="placas">🖥️ Placas e Arduinos</option>
+                        <option value="ferragens">🔩 Ferragens</option>
+                        <option value="outros">📦 Outros</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="itemQuantity">Quantidade *</label>
+                    <input type="number" id="itemQuantity" min="0" value="1" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="itemMinStock">Stock Mínimo</label>
+                    <input type="number" id="itemMinStock" min="0" value="1">
+                </div>
+
+                <div class="form-group">
+                    <label for="itemLocation">Localização</label>
+                    <input type="text" id="itemLocation" placeholder="Ex: Gaveta 3, Caixa A">
+                </div>
+
+                <div class="form-group">
+                    <label for="itemNotes">Notas</label>
+                    <textarea id="itemNotes" rows="3" placeholder="Informações adicionais..."></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" onclick="closeModal()" class="btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
