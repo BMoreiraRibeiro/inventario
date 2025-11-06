@@ -3,6 +3,8 @@ let inventory = [];
 let currentEditId = null;
 let isLoggedIn = false;
 let locations = [];
+let categories = [];
+let pendingDeleteId = null;
 
 // Inicialização
 // Inicialização segura: se o DOM já estiver carregado, executa imediatamente.
@@ -42,6 +44,9 @@ function initApp() {
     loadLocations();
     populateLocationSelects();
     populateLocationFilters();
+    // Carregar categorias
+    loadCategories();
+    populateCategorySelects();
 
     // groupBy default listener
     const groupEl = document.getElementById('groupBy');
@@ -366,6 +371,115 @@ function populateLocationFilters(selectedParent, selectedChild) {
     };
 }
 
+// Categories
+function loadCategories() {
+    const saved = localStorage.getItem('categories');
+    if (saved) {
+        try { categories = JSON.parse(saved); } catch (e) { categories = []; }
+    } else {
+        categories = ['ferramentas','eletrico','eletronico','placas','ferragens','outros'];
+        saveCategories();
+    }
+}
+
+function saveCategories() {
+    localStorage.setItem('categories', JSON.stringify(categories));
+}
+
+function populateCategorySelects(selected) {
+    const filter = document.getElementById('categoryFilter');
+    const itemSel = document.getElementById('itemCategory');
+    if (!filter || !itemSel) return;
+
+    // preserve 'all' option for filter
+    const currentFilter = filter.value || 'all';
+    filter.innerHTML = '';
+    const optAll = document.createElement('option');
+    optAll.value = 'all';
+    optAll.textContent = 'Todas as Categorias';
+    filter.appendChild(optAll);
+
+    categories.forEach(cat => {
+        const o = document.createElement('option');
+        o.value = cat;
+        o.textContent = cat;
+        filter.appendChild(o);
+    });
+    filter.value = selected === 'filter' ? currentFilter : (filter.value || 'all');
+
+    // item select
+    itemSel.innerHTML = '';
+    const empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = 'Selecione...';
+    itemSel.appendChild(empty);
+    categories.forEach(cat => {
+        const o = document.createElement('option');
+        o.value = cat;
+        o.textContent = cat;
+        itemSel.appendChild(o);
+    });
+    if (selected && selected !== 'filter') itemSel.value = selected;
+}
+
+// Category modal
+function showAddCategoryModal() {
+    const modal = document.getElementById('categoryModal');
+    const input = document.getElementById('categoryName');
+    if (!modal || !input) return;
+    input.value = '';
+    modal.classList.add('active');
+    setTimeout(() => input.focus(), 50);
+}
+
+function closeCategoryModal() {
+    const modal = document.getElementById('categoryModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+}
+
+function submitCategoryForm(event) {
+    event.preventDefault();
+    const name = document.getElementById('categoryName').value.trim();
+    if (!name) return;
+    if (categories.includes(name)) { alert('Categoria já existe'); return; }
+    categories.push(name);
+    saveCategories();
+    populateCategorySelects(name);
+    closeCategoryModal();
+}
+
+// Delete modal
+function showDeleteModal(id) {
+    const modal = document.getElementById('deleteModal');
+    const msg = document.getElementById('deleteMessage');
+    const item = inventory.find(i => i.id === id);
+    if (!modal || !msg || !item) return;
+    pendingDeleteId = id;
+    msg.textContent = `Tem certeza que deseja eliminar "${item.name}"?`;
+    modal.classList.add('active');
+}
+
+function closeDeleteModal() {
+    const modal = document.getElementById('deleteModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    pendingDeleteId = null;
+}
+
+function confirmDelete() {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    pendingDeleteId = null;
+    const item = inventory.find(i => i.id === id);
+    if (!item) { closeDeleteModal(); return; }
+    inventory = inventory.filter(i => i.id !== id);
+    saveInventory();
+    closeDeleteModal();
+    renderItems();
+    updateStats();
+}
+
 function onLocationFilterChange() {
     // update child options and then filter
     const parentSel = document.getElementById('locationFilterParent');
@@ -672,15 +786,8 @@ function saveItem(event) {
 }
 
 function deleteItem(id) {
-    const item = inventory.find(i => i.id === id);
-    if (!item) return;
-    
-    if (confirm(`Tem certeza que deseja eliminar "${item.name}"?`)) {
-        inventory = inventory.filter(i => i.id !== id);
-        saveInventory();
-        renderItems();
-        updateStats();
-    }
+    // Backwards-compatible wrapper -> open modal confirmation
+    showDeleteModal(id);
 }
 
 function adjustStock(id, delta) {
@@ -770,7 +877,7 @@ function renderItems() {
                     ${item.notes ? `\n                        <div class="item-notes">💬 ${item.notes}</div>\n                    ` : ''}
                 </div>
                 <div class="stock-controls"><button class="stock-btn minus" onclick="adjustStock(${item.id}, -1)" ${item.quantity === 0 ? 'disabled' : ''}>−</button><button class="stock-btn plus" onclick="adjustStock(${item.id}, 1)">+</button></div>
-                <div class="item-actions"><button class="btn-edit" onclick="showEditItemModal(${item.id})">✏️ Editar</button><button class="btn-delete" onclick="deleteItem(${item.id})">🗑️ Eliminar</button></div>
+                <div class="item-actions"><button class="btn-edit" onclick="showEditItemModal(${item.id})">✏️ Editar</button><button class="btn-delete" onclick="showDeleteModal(${item.id})">🗑️ Eliminar</button></div>
             </div>
         `;
     }

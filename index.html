@@ -105,18 +105,7 @@
                     <input type="text" id="itemName" required>
                 </div>
 
-                <div class="form-group">
-                    <label for="itemCategory">Categoria *</label>
-                    <select id="itemCategory" required>
-                        <option value="">Selecione...</option>
-                        <option value="ferramentas">🔨 Ferramentas</option>
-                        <option value="eletrico">⚡ Material Elétrico</option>
-                        <option value="eletronico">🔌 Componentes Eletrônicos</option>
-                        <option value="placas">🖥️ Placas e Arduinos</option>
-                        <option value="ferragens">🔩 Ferragens</option>
-                        <option value="outros">📦 Outros</option>
-                    </select>
-                </div>
+                <!-- Category select will be populated dynamically (see Categoria (rápido) below) -->
 
                 <div class="form-group">
                     <label for="itemQuantity">Quantidade *</label>
@@ -141,6 +130,17 @@
                     <div style="display:flex; gap:8px; align-items:center;">
                         <select id="itemLocationChild" style="flex:1;"></select>
                         <button type="button" class="btn-secondary" onclick="showAddSublocationModal()">+ Sub</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="itemCategory">Categoria (rápido)</label>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <!-- keep the existing select as primary for forms -->
+                        <select id="itemCategory" required>
+                            <!-- options populated on load -->
+                        </select>
+                        <button type="button" class="btn-secondary" onclick="showAddCategoryModal()">+ Categoria</button>
                     </div>
                 </div>
 
@@ -194,6 +194,37 @@
                     <button type="submit" class="btn-primary">Adicionar Sub-Local</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal para adicionar Categoria -->
+    <div id="categoryModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCategoryModal()">&times;</span>
+            <h2>Adicionar Categoria</h2>
+            <form id="categoryForm" onsubmit="submitCategoryForm(event)">
+                <div class="form-group">
+                    <label for="categoryName">Nome da Categoria *</label>
+                    <input type="text" id="categoryName" required placeholder="Ex: sensores, cabos">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeCategoryModal()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Adicionar Categoria</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para confirmar eliminação de item -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeDeleteModal()">&times;</span>
+            <h2>Confirmar Eliminação</h2>
+            <p id="deleteMessage">Tem certeza que deseja eliminar este item?</p>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeDeleteModal()">Cancelar</button>
+                <button type="button" class="btn-primary" onclick="confirmDelete()">Eliminar</button>
+            </div>
         </div>
     </div>
 
