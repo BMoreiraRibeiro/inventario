@@ -132,7 +132,7 @@
                     <label for="itemLocationParent">Local</label>
                     <div style="display:flex; gap:8px; align-items:center;">
                         <select id="itemLocationParent" style="flex:1;"></select>
-                        <button type="button" class="btn-secondary" onclick="addLocationPrompt()">+ Local</button>
+                        <button type="button" class="btn-secondary" onclick="showAddLocationModal()">+ Local</button>
                     </div>
                 </div>
 
@@ -140,7 +140,7 @@
                     <label for="itemLocationChild">Sub-Local</label>
                     <div style="display:flex; gap:8px; align-items:center;">
                         <select id="itemLocationChild" style="flex:1;"></select>
-                        <button type="button" class="btn-secondary" onclick="addSublocationPrompt()">+ Sub</button>
+                        <button type="button" class="btn-secondary" onclick="showAddSublocationModal()">+ Sub</button>
                     </div>
                 </div>
 
@@ -152,6 +152,46 @@
                 <div class="form-actions">
                     <button type="button" onclick="closeModal()" class="btn-secondary">Cancelar</button>
                     <button type="submit" class="btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para adicionar Local -->
+    <div id="locationModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeLocationModal()">&times;</span>
+            <h2>Adicionar Local</h2>
+            <form id="locationForm" onsubmit="submitLocationForm(event)">
+                <div class="form-group">
+                    <label for="locationName">Nome do Local *</label>
+                    <input type="text" id="locationName" required placeholder="Ex: Armário, Caixa">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeLocationModal()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Adicionar Local</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para adicionar Sub-Local -->
+    <div id="sublocationModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeSublocationModal()">&times;</span>
+            <h2>Adicionar Sub-Local</h2>
+            <form id="sublocationForm" onsubmit="submitSublocationForm(event)">
+                <div class="form-group">
+                    <label for="sublocationParent">Local Pai *</label>
+                    <select id="sublocationParent" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="sublocationName">Nome do Sub-Local *</label>
+                    <input type="text" id="sublocationName" required placeholder="Ex: Gaveta 1">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeSublocationModal()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Adicionar Sub-Local</button>
                 </div>
             </form>
         </div>

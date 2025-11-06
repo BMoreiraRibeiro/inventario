@@ -233,21 +233,64 @@ function populateLocationSelects(selectedParent, selectedChild) {
     };
 }
 
-function addLocationPrompt() {
-    const name = prompt('Nome do novo local (ex: Armário, Caixa):');
+// Modal-based location management (replaces prompt-based flows)
+function showAddLocationModal() {
+    const modal = document.getElementById('locationModal');
+    const input = document.getElementById('locationName');
+    if (!modal || !input) return;
+    input.value = '';
+    modal.classList.add('active');
+    setTimeout(() => input.focus(), 50);
+}
+
+function closeLocationModal() {
+    const modal = document.getElementById('locationModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+}
+
+function submitLocationForm(event) {
+    event.preventDefault();
+    const name = document.getElementById('locationName').value.trim();
     if (!name) return;
     if (locations.find(l => l.name === name)) { alert('Local já existe'); return; }
     locations.push({ name, subs: [] });
     saveLocations();
     populateLocationSelects(name, '');
-    populateLocationFilters();
+    populateLocationFilters(name, '');
+    closeLocationModal();
 }
 
-function addSublocationPrompt() {
-    const parentSel = document.getElementById('itemLocationParent');
-    if (!parentSel || !parentSel.value) { alert('Selecione primeiro um Local'); return; }
-    const parentName = parentSel.value;
-    const subName = prompt('Nome do novo sub-local (ex: Gaveta 1):');
+function showAddSublocationModal() {
+    const modal = document.getElementById('sublocationModal');
+    const parentSel = document.getElementById('sublocationParent');
+    const currentParent = document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '';
+    if (!modal || !parentSel) return;
+    // populate parent select
+    parentSel.innerHTML = '';
+    locations.forEach(loc => {
+        const o = document.createElement('option');
+        o.value = loc.name;
+        o.textContent = loc.name;
+        parentSel.appendChild(o);
+    });
+    if (currentParent) parentSel.value = currentParent;
+    document.getElementById('sublocationName').value = '';
+    modal.classList.add('active');
+    setTimeout(() => document.getElementById('sublocationName').focus(), 50);
+}
+
+function closeSublocationModal() {
+    const modal = document.getElementById('sublocationModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+}
+
+function submitSublocationForm(event) {
+    event.preventDefault();
+    const parentName = document.getElementById('sublocationParent').value;
+    const subName = document.getElementById('sublocationName').value.trim();
+    if (!parentName) { alert('Selecione um Local pai'); return; }
     if (!subName) return;
     const parent = locations.find(l => l.name === parentName);
     if (!parent) return;
@@ -255,7 +298,18 @@ function addSublocationPrompt() {
     parent.subs.push(subName);
     saveLocations();
     populateLocationSelects(parentName, subName);
-    populateLocationFilters();
+    populateLocationFilters(parentName, subName);
+    // ensure item modal selects reflect the new values
+    const itemParent = document.getElementById('itemLocationParent');
+    const itemChild = document.getElementById('itemLocationChild');
+    if (itemParent) itemParent.value = parentName;
+    if (itemChild) {
+        // repopulate children for the selected parent
+        const evt = new Event('change');
+        if (itemParent.onchange) itemParent.onchange();
+        itemChild.value = subName;
+    }
+    closeSublocationModal();
 }
 
 function populateLocationFilters(selectedParent, selectedChild) {
@@ -649,7 +703,10 @@ function renderItems() {
     const categoryFilter = document.getElementById('categoryFilter').value;
     const groupBy = (document.getElementById('groupBy') ? document.getElementById('groupBy').value : 'none');
     
-    // Filtrar items (incluir parent/child location)
+    // Filtrar items (incluir parent/child location e filtros selects de Local/Sub-Local)
+    const locParentFilter = (document.getElementById('locationFilterParent') ? document.getElementById('locationFilterParent').value : 'all');
+    const locChildFilter = (document.getElementById('locationFilterChild') ? document.getElementById('locationFilterChild').value : 'all');
+
     let filteredItems = inventory.filter(item => {
         const nameMatch = item.name && item.name.toLowerCase().includes(searchTerm);
         const notesMatch = item.notes && item.notes.toLowerCase().includes(searchTerm);
@@ -657,7 +714,23 @@ function renderItems() {
         const childMatch = item.locationChild && item.locationChild.toLowerCase().includes(searchTerm);
         const matchesSearch = nameMatch || notesMatch || parentMatch || childMatch;
         const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
-        return matchesSearch && matchesCategory;
+
+        // Location filter logic:
+        let matchesLocation = true;
+        if (locParentFilter && locParentFilter !== 'all') {
+            // match if item's parent equals filter OR child contains the parent name (legacy strings)
+            const lp = (item.locationParent || '').toLowerCase();
+            const lc = (item.locationChild || '').toLowerCase();
+            const sel = locParentFilter.toLowerCase();
+            matchesLocation = (lp === sel) || (lc === sel) || (lc.includes(sel));
+        }
+        if (matchesLocation && locChildFilter && locChildFilter !== 'all') {
+            const lc = (item.locationChild || '').toLowerCase();
+            const selc = locChildFilter.toLowerCase();
+            matchesLocation = (lc === selc) || (lc.includes(selc));
+        }
+
+        return matchesSearch && matchesCategory && matchesLocation;
     });
     
     if (filteredItems.length === 0) {
@@ -712,8 +785,9 @@ function renderItems() {
         });
         let html = '';
         Object.keys(groups).forEach(g => {
-            html += `<h3 style="margin-top:18px; color:var(--text-primary);">${g}</h3>`;
+            html += `<div class="group-section"><h3 class="group-title">${g}</h3><div class="group-items">`;
             groups[g].forEach(it => { html += renderItemCard(it); });
+            html += `</div></div>`;
         });
         container.innerHTML = html;
         return;
@@ -744,8 +818,16 @@ function updateStats() {
 
 // Fechar modal clicando fora
 window.onclick = function(event) {
-    const modal = document.getElementById('itemModal');
-    if (event.target === modal) {
+    const itemModalEl = document.getElementById('itemModal');
+    const locModalEl = document.getElementById('locationModal');
+    const subModalEl = document.getElementById('sublocationModal');
+    if (event.target === itemModalEl) {
         closeModal();
+    }
+    if (event.target === locModalEl) {
+        closeLocationModal();
+    }
+    if (event.target === subModalEl) {
+        closeSublocationModal();
     }
 }
