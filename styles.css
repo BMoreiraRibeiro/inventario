@@ -606,3 +606,22 @@ header h1 {
         font-size: 28px;
     }
 }
+
+/* Grouping sections for locations */
+.group-section {
+    margin-bottom: 20px;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+}
+.group-title {
+    margin: 0 0 12px 0;
+    color: var(--text-primary);
+    font-size: 18px;
+}
+.group-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
