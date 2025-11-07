@@ -29,14 +29,11 @@ function slugify(s) {
 // Inicialização
 // Inicialização segura: se o DOM já estiver carregado, executa imediatamente.
 function initApp() {
-    // Verificar se já está logado
-    isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
-    
-    if (isLoggedIn) {
-        showInventoryScreen();
-    } else {
-        showLoginScreen();
-    }
+    // Forçar mostrar inventário ao iniciar (carregar todos os items de imediato)
+    // O botão Sair foi escondido pelo pedido do utilizador.
+    isLoggedIn = true;
+    try { sessionStorage.setItem('isLoggedIn', 'true'); } catch(e) {}
+    showInventoryScreen();
 
     // Carregar dados do localStorage
     loadInventory();
@@ -71,6 +68,10 @@ function initApp() {
     // groupBy default listener
     const groupEl = document.getElementById('groupBy');
     if (groupEl) groupEl.addEventListener('change', () => renderItems());
+
+    // Render items right away
+    renderItems();
+    updateStats();
 }
 
 if (document.readyState === 'loading') {
@@ -536,8 +537,8 @@ function populateCategoryManager() {
         const actions = document.createElement('div');
         actions.style.display = 'flex';
         actions.style.gap = '8px';
-        const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
-        const delBtn = document.createElement('button'); delBtn.className = 'btn-secondary'; delBtn.textContent = 'Eliminar';
+    const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
+    const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.textContent = 'Eliminar';
         editBtn.onclick = () => editCategoryInline(cat.key);
         delBtn.onclick = () => {
             showDeleteModal({ type: 'category', key: cat.key });
@@ -614,9 +615,9 @@ function populateLocationManager() {
         header.style.display = 'flex'; header.style.justifyContent = 'space-between'; header.style.alignItems = 'center';
         header.innerHTML = `<strong>${loc.name}</strong>`;
         const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.gap = '8px';
-        const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
-        const addSubBtn = document.createElement('button'); addSubBtn.className = 'btn-secondary'; addSubBtn.textContent = '+ Sub';
-        const delBtn = document.createElement('button'); delBtn.className = 'btn-secondary'; delBtn.textContent = 'Eliminar';
+    const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
+    const addSubBtn = document.createElement('button'); addSubBtn.className = 'btn-secondary'; addSubBtn.textContent = '+ Sub';
+    const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.textContent = 'Eliminar';
         editBtn.onclick = () => editLocationInline(loc.name);
         addSubBtn.onclick = () => showAddSublocationModal(loc.name);
             delBtn.onclick = () => {
@@ -633,7 +634,7 @@ function populateLocationManager() {
                 li.innerHTML = `<span>${sub}</span>`;
                 const subActions = document.createElement('div'); subActions.style.display = 'flex'; subActions.style.gap = '8px';
                 const editSub = document.createElement('button'); editSub.className = 'btn-primary'; editSub.textContent = 'Editar';
-                const delSub = document.createElement('button'); delSub.className = 'btn-secondary'; delSub.textContent = 'Eliminar';
+                const delSub = document.createElement('button'); delSub.className = 'btn-delete'; delSub.textContent = 'Eliminar';
                 editSub.onclick = () => editSublocationInline(loc.name, sub);
                 delSub.onclick = () => {
                     showDeleteModal({ type: 'sublocation', parent: loc.name, name: sub });
