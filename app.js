@@ -9,19 +9,27 @@ let modalZIndex = 1000;
 
 function openModal(el) {
     if (!el) return;
-    // Ensure modal doesn't overlap the app header: set top padding equal to header height
+    // Ensure modal doesn't overlap the app header: position modal content below header
     const headerEl = document.querySelector('header');
+    let headerH = 0;
     if (headerEl) {
-        try {
-            const headerH = headerEl.getBoundingClientRect().height || 0;
-            el.style.paddingTop = (headerH + 12) + 'px';
-        } catch (e) {
-            // ignore
-        }
+        try { headerH = headerEl.getBoundingClientRect().height || 0; } catch (e) { headerH = 0; }
     }
     el.classList.add('active');
     modalZIndex += 1;
     el.style.zIndex = modalZIndex;
+
+    // Anchor modal-content below header and set a dynamic max-height so it only grows downward
+    const modalContent = el.querySelector('.modal-content');
+    if (modalContent) {
+        modalContent.style.marginTop = (headerH + 12) + 'px';
+        // ensure it never exceeds viewport minus header area
+        modalContent.style.maxHeight = 'calc(100vh - ' + (headerH + 40) + 'px)';
+        modalContent.style.overflowY = 'auto';
+    }
+
+    // ensure overlay scroll is at top so user can scroll modal-content to see top
+    try { el.scrollTop = 0; } catch (e) {}
 }
 
 function closeModalEl(el) {
@@ -29,8 +37,13 @@ function closeModalEl(el) {
     el.classList.remove('active');
     // remove inline zIndex so other modals can reuse stacking
     el.style.zIndex = '';
-    // clear any paddingTop set when opening to restore default
-    el.style.paddingTop = '';
+    // clear any inline styles we set on modal-content when opening
+    const modalContent = el.querySelector && el.querySelector('.modal-content');
+    if (modalContent) {
+        modalContent.style.marginTop = '';
+        modalContent.style.maxHeight = '';
+        modalContent.style.overflowY = '';
+    }
 }
 
 // Helper: slugify label to key
@@ -225,6 +238,10 @@ function saveLocations() {
     // Trigger cloud sync if available
     if (typeof syncLocationsToCloud !== 'undefined' && !isSyncing) {
         setTimeout(() => syncLocationsToCloud(), 100);
+    }
+    // Also request a full sync shortly after to ensure deletes/associations are propagated
+    if (typeof syncToCloud !== 'undefined' && !isSyncing) {
+        setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
     }
 }
 
@@ -468,6 +485,10 @@ function saveCategories() {
     // Trigger cloud sync if available
     if (typeof syncCategoriesToCloud !== 'undefined' && !isSyncing) {
         setTimeout(() => syncCategoriesToCloud(), 100);
+    }
+    // Also request a full sync shortly after to ensure deletes/associations are propagated
+    if (typeof syncToCloud !== 'undefined' && !isSyncing) {
+        setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
     }
 }
 
@@ -1117,6 +1138,10 @@ function saveInventory() {
     // Trigger cloud sync if available
     if (typeof syncInventoryToCloud !== 'undefined' && !isSyncing) {
         setTimeout(() => syncInventoryToCloud(), 100);
+    }
+    // Also request a full sync shortly after to ensure deletes/associations are propagated
+    if (typeof syncToCloud !== 'undefined' && !isSyncing) {
+        setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
     }
 }
 
