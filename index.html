@@ -2,7 +2,9 @@
 <html lang="pt">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -64,17 +66,17 @@
                         <option value="outros">📦 Outros</option>
                     </select>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                    <div class="category-filter" style="display:flex; gap:8px; align-items:center;">
-                        <select id="locationFilterParent" onchange="onLocationFilterChange()" style="padding:8px 10px; border-radius:8px; background:var(--input-bg); color:var(--text-primary); border:2px solid var(--border-color);">
-                            <option value="all">Todos os Locais</option>
-                        </select>
-                        <select id="locationFilterChild" onchange="filterItems()" style="padding:8px 10px; border-radius:8px; background:var(--input-bg); color:var(--text-primary); border:2px solid var(--border-color);">
-                            <option value="all">Todos os Sub-Locais</option>
-                        </select>
-                    </div>
-                    <label for="groupBy" style="color:var(--text-secondary); font-size:14px;">Agrupar por:</label>
-                    <select id="groupBy" onchange="renderItems()" style="padding:8px 10px; border-radius:8px; background:var(--input-bg); color:var(--text-primary); border:2px solid var(--border-color);">
+                <div class="location-filters">
+                    <select id="locationFilterParent" onchange="onLocationFilterChange()">
+                        <option value="all">Todos os Locais</option>
+                    </select>
+                    <select id="locationFilterChild" onchange="filterItems()">
+                        <option value="all">Todos os Sub-Locais</option>
+                    </select>
+                </div>
+                <div class="group-filter">
+                    <label for="groupBy">Agrupar por:</label>
+                    <select id="groupBy" onchange="renderItems()">
                         <option value="none">Nenhum</option>
                         <option value="locationParent">Local</option>
                         <option value="locationChild">Sub-Local</option>

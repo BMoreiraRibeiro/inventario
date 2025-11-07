@@ -28,6 +28,14 @@ body {
     background-color: var(--bg-color);
     color: var(--text-primary);
     line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent text size adjustment on orientation change */
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Better touch scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Telas */
@@ -110,51 +118,58 @@ body {
 /* Header */
 header {
     background: var(--card-bg);
-    padding: 16px 20px;
+    padding: 12px 16px;
     box-shadow: var(--shadow);
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     position: sticky;
     top: 0;
     z-index: 100;
     border-bottom: 1px solid var(--border-color);
+    gap: 8px;
 }
 
 header h1 {
-    font-size: 24px;
+    font-size: 20px;
     color: var(--text-primary);
+    flex: 0 0 auto;
 }
 
 /* Header small stats next to title */
 .header-stats {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     align-items: center;
-    margin-left: 16px;
+    flex-wrap: wrap;
 }
 .header-stat {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 6px 10px;
-    border-radius: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
     background: transparent;
     color: var(--text-primary);
-    font-size: 12px;
+    font-size: 11px;
+    min-width: 60px;
 }
 .header-stat .stat-number {
     font-weight: 700;
-    font-size: 14px;
+    font-size: 16px;
     color: var(--primary-color);
+    line-height: 1.2;
 }
 .header-stat .stat-label {
-    font-size: 11px;
+    font-size: 10px;
     color: var(--text-secondary);
+    white-space: nowrap;
 }
 .header-stat.clickable { cursor: pointer; }
 .header-stat.clickable:hover { background: var(--hover-bg); }
+.header-stat.clickable:active { background: var(--border-color); }
 
 .logout-btn {
     padding: 8px 16px;
@@ -215,6 +230,38 @@ header h1 {
     background: var(--input-bg);
     color: var(--text-primary);
     cursor: pointer;
+}
+
+/* Location filters group */
+.location-filters {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.location-filters select {
+    flex: 1;
+    min-width: 140px;
+}
+
+/* Group by filter */
+.group-filter {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.group-filter label {
+    color: var(--text-secondary);
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.group-filter select {
+    flex: 1;
+    min-width: 120px;
 }
 
 /* Make selects robust on Android: avoid collapsing in flex containers and ensure text is visible */
@@ -278,10 +325,18 @@ option { white-space: normal; }
     cursor: pointer;
     white-space: nowrap;
     transition: background-color 0.3s;
+    min-height: 44px; /* Touch target */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn-primary:hover {
     background: var(--primary-dark);
+}
+
+.btn-primary:active {
+    background: #1e40af;
 }
 
 .btn-secondary {
@@ -294,10 +349,18 @@ option { white-space: normal; }
     font-weight: 600;
     cursor: pointer;
     transition: opacity 0.3s;
+    min-height: 44px; /* Touch target */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn-secondary:hover {
     opacity: 0.9;
+}
+
+.btn-secondary:active {
+    opacity: 0.8;
 }
 
 /* Stats */
@@ -642,23 +705,72 @@ option { white-space: normal; }
 
 /* Responsive */
 @media (max-width: 768px) {
+    header {
+        padding: 10px 12px;
+        gap: 6px;
+    }
+
     header h1 {
-        font-size: 18px;
+        font-size: 16px;
+        width: 100%;
+        margin-bottom: 4px;
+    }
+
+    .header-stats {
+        width: 100%;
+        justify-content: flex-start;
+        gap: 12px;
+    }
+
+    .header-stat {
+        flex: 1;
+        min-width: 70px;
+    }
+
+    .toolbar {
+        gap: 8px !important;
+    }
+
+    .toolbar button {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 13px;
+        padding: 10px 12px;
+        white-space: nowrap;
     }
 
     .controls {
         flex-direction: column;
+        gap: 10px;
+    }
+
+    .controls > div {
+        width: 100%;
     }
 
     .search-box,
+    .category-filter,
     .category-filter select,
     #locationFilterParent,
     #locationFilterChild,
     #itemLocationParent,
     #itemLocationChild,
     #sublocationParent,
+    #groupBy,
     .btn-primary {
         width: 100%;
+    }
+
+    /* Remove inline styles on mobile - force proper layout */
+    .controls > div[style] {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+        align-items: stretch !important;
+    }
+
+    .controls label {
+        margin-top: 8px;
     }
 
     .stats {
@@ -669,34 +781,106 @@ option { white-space: normal; }
         grid-template-columns: 1fr;
     }
 
+    .group-items {
+        grid-template-columns: 1fr;
+    }
+
     .login-container {
         padding: 30px 20px;
     }
 
     .modal-content {
-        padding: 24px;
+        padding: 20px;
+        margin: 10px;
+    }
+
+    .close {
+        right: 12px;
+        top: 12px;
+        font-size: 32px;
+        padding: 4px;
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .item-card {
+        padding: 14px;
+    }
+
+    .item-title {
+        font-size: 16px;
+    }
+
+    .stock-btn {
+        min-height: 44px;
+        font-size: 20px;
+    }
+
+    .btn-edit, .btn-delete {
+        min-height: 44px;
+        font-size: 14px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        font-size: 16px; /* Prevent zoom on focus in iOS/Android */
+        min-height: 44px;
     }
 }
 
 @media (max-width: 480px) {
     .container {
-        padding: 12px;
+        padding: 10px;
     }
 
     header {
-        padding: 12px;
+        padding: 8px 10px;
+    }
+
+    header h1 {
+        font-size: 15px;
+    }
+
+    .header-stat .stat-number {
+        font-size: 14px;
+    }
+
+    .header-stat .stat-label {
+        font-size: 9px;
+    }
+
+    .toolbar button {
+        font-size: 12px;
+        padding: 9px 10px;
     }
 
     .item-card {
-        padding: 16px;
+        padding: 12px;
+    }
+
+    .item-title {
+        font-size: 15px;
     }
 
     .stat-card {
-        padding: 16px;
+        padding: 14px;
     }
 
     .stat-card h3 {
-        font-size: 28px;
+        font-size: 24px;
+    }
+
+    .modal-content {
+        padding: 16px;
+    }
+
+    .modal-content h2 {
+        font-size: 18px;
+        margin-bottom: 16px;
     }
 }
 
