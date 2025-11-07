@@ -1257,6 +1257,14 @@ function adjustStock(id, delta) {
 
 // Funções de Renderização
 function renderItems() {
+    console.log('🎨 [RENDER] renderItems called, inventory count:', inventory.length);
+    
+    // Validate inventory items have IDs
+    const itemsWithoutId = inventory.filter(item => !item || item.id === undefined || item.id === null);
+    if (itemsWithoutId.length > 0) {
+        console.error('❌ [RENDER] Found', itemsWithoutId.length, 'items without valid IDs:', itemsWithoutId);
+    }
+    
     const container = document.getElementById('itemsList');
     const emptyMessage = document.getElementById('emptyMessage');
     const searchTerm = document.getElementById('searchInput').value.toLowerCase();
@@ -1306,32 +1314,53 @@ function renderItems() {
 
     // Render helper
     function renderItemCard(item) {
-        const catObj = categories.find(c => c.key === item.category) || { icon: '', label: item.category || '' };
-        const isLowStock = item.quantity <= item.minStock && item.quantity > 0;
-        const isEmpty = item.quantity === 0;
-        let stockClass = '';
-        let stockBadge = '';
-        if (isEmpty) { stockClass = 'empty'; stockBadge = '<span class="stock-badge empty">SEM STOCK</span>'; }
-        else if (isLowStock) { stockClass = 'low'; stockBadge = '<span class="stock-badge low">STOCK BAIXO</span>'; }
-        const displayLocation = (item.locationParent ? item.locationParent + (item.locationChild ? ' / ' + item.locationChild : '') : (item.locationChild || ''));
-        return `
-            <div class="item-card">
-                <div class="item-header">
-                    <div>
-                        <div class="item-title">${item.name}</div>
-                        <div class="item-category">${catObj.icon || ''} ${catObj.label || item.category}</div>
+        // Validate item ID
+        if (!item || item.id === undefined || item.id === null) {
+            console.error('❌ [RENDER] Item without valid ID:', item);
+            return '<div class="item-card"><div style="color:red; padding:12px;">Erro: Item sem ID válido</div></div>';
+        }
+        
+        try {
+            const itemId = String(item.id);
+            const safeId = JSON.stringify(itemId);
+            
+            // Log item being rendered (only in debug mode)
+            if (window.DEBUG_RENDER) {
+                console.log('🎨 [RENDER] Rendering item:', item.name, 'id:', itemId, 'type:', typeof item.id);
+            }
+            
+            const catObj = categories.find(c => c.key === item.category) || { icon: '', label: item.category || '' };
+            const isLowStock = item.quantity <= item.minStock && item.quantity > 0;
+            const isEmpty = item.quantity === 0;
+            let stockClass = '';
+            let stockBadge = '';
+            if (isEmpty) { stockClass = 'empty'; stockBadge = '<span class="stock-badge empty">SEM STOCK</span>'; }
+            else if (isLowStock) { stockClass = 'low'; stockBadge = '<span class="stock-badge low">STOCK BAIXO</span>'; }
+            const displayLocation = (item.locationParent ? item.locationParent + (item.locationChild ? ' / ' + item.locationChild : '') : (item.locationChild || ''));
+            
+            return `
+                <div class="item-card" data-item-id="${itemId}">
+                    <div class="item-header">
+                        <div>
+                            <div class="item-title">${item.name || 'Sem nome'}</div>
+                            <div class="item-category">${catObj.icon || ''} ${catObj.label || item.category}</div>
+                        </div>
                     </div>
+                    <div class="item-details">
+                        <div class="item-detail"><span>Quantidade:</span><span class="stock-quantity ${stockClass}">${item.quantity || 0} ${stockBadge}</span></div>
+                        <div class="item-detail"><span>Stock Mínimo:</span><span>${item.minStock || 0}</span></div>
+                        ${displayLocation ? `\n                        <div class="item-location">📍 ${displayLocation}</div>\n                    ` : ''}
+                        ${item.notes ? `\n                        <div class="item-notes">💬 ${item.notes}</div>\n                    ` : ''}
+                    </div>
+                    <div class="stock-controls"><button class="stock-btn minus" onclick="adjustStock(${safeId}, -1)" ${item.quantity === 0 ? 'disabled' : ''}>−</button><button class="stock-btn plus" onclick="adjustStock(${safeId}, 1)">+</button></div>
+                    <div class="item-actions"><button class="btn-edit" onclick="showEditItemModal(${safeId})">✏️ Editar</button><button class="btn-delete" onclick="showDeleteModal(${safeId})">🗑️ Eliminar</button></div>
                 </div>
-                <div class="item-details">
-                    <div class="item-detail"><span>Quantidade:</span><span class="stock-quantity ${stockClass}">${item.quantity} ${stockBadge}</span></div>
-                    <div class="item-detail"><span>Stock Mínimo:</span><span>${item.minStock}</span></div>
-                    ${displayLocation ? `\n                        <div class="item-location">📍 ${displayLocation}</div>\n                    ` : ''}
-                    ${item.notes ? `\n                        <div class="item-notes">💬 ${item.notes}</div>\n                    ` : ''}
-                </div>
-                <div class="stock-controls"><button class="stock-btn minus" onclick="adjustStock(${JSON.stringify(item.id)}, -1)" ${item.quantity === 0 ? 'disabled' : ''}>−</button><button class="stock-btn plus" onclick="adjustStock(${JSON.stringify(item.id)}, 1)">+</button></div>
-                <div class="item-actions"><button class="btn-edit" onclick="showEditItemModal(${JSON.stringify(item.id)})">✏️ Editar</button><button class="btn-delete" onclick="showDeleteModal(${JSON.stringify(item.id)})">🗑️ Eliminar</button></div>
-            </div>
-        `;
+            `;
+        } catch (error) {
+            console.error('❌ [RENDER] Exception rendering item card:', error);
+            console.error('❌ [RENDER] Item data:', item);
+            return '<div class="item-card"><div style="color:red; padding:12px;">Erro ao renderizar item</div></div>';
+        }
     }
 
     // Agrupar se necessário
