@@ -449,14 +449,26 @@ function populateCategorySelects(selected) {
     optAll.value = 'all';
     optAll.textContent = 'Todas as Categorias';
     filter.appendChild(optAll);
-
+    // populate categories and their subcategories in the same dropdown
     categories.forEach(cat => {
         const o = document.createElement('option');
         o.value = cat.key;
         o.textContent = `${cat.icon || ''} ${cat.label}`.trim();
         filter.appendChild(o);
+        if (Array.isArray(cat.subs) && cat.subs.length > 0) {
+            cat.subs.forEach(sub => {
+                const s = document.createElement('option');
+                s.value = `${cat.key}||${sub}`;
+                s.textContent = `  └ ${cat.icon || ''} ${cat.label} › ${sub}`;
+                filter.appendChild(s);
+            });
+        }
     });
-    filter.value = selected === 'filter' ? currentFilter : (filter.value || 'all');
+    if (selected && selected !== 'filter') {
+        filter.value = selected;
+    } else {
+        filter.value = currentFilter || 'all';
+    }
 
     itemSel.innerHTML = '';
     const empty = document.createElement('option');
@@ -1062,7 +1074,16 @@ function renderItems() {
             (i.locationChild || '').toLowerCase().includes(q)
         );
     }
-    if (cat !== 'all') items = items.filter(i => (i.category || '') === cat);
+    if (cat !== 'all') {
+        if (cat.includes('||')) {
+            const parts = cat.split('||');
+            const catKey = parts[0];
+            const subKey = parts.slice(1).join('||');
+            items = items.filter(i => (i.category || '') === catKey && ((i.subcategory || '') === subKey));
+        } else {
+            items = items.filter(i => (i.category || '') === cat);
+        }
+    }
     if (pLoc !== 'all') items = items.filter(i => (i.locationParent || '') === pLoc);
     if (cLoc !== 'all') items = items.filter(i => (i.locationChild || '') === cLoc);
 
