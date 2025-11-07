@@ -354,6 +354,8 @@ function submitSublocationForm(event) {
         if (itemParent.onchange) itemParent.onchange();
         itemChild.value = subName;
     }
+    // Update location manager UI immediately if it's open
+    if (typeof populateLocationManager !== 'undefined') populateLocationManager();
     closeSublocationModal();
 }
 
