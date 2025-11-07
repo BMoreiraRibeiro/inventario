@@ -241,6 +241,27 @@ select option {
     background: var(--card-bg);
 }
 
+/* Allow selects to shrink inside flex containers and avoid causing horizontal overflow */
+/* Important on Android WebView / Chrome where the select can force wide layout */
+.controls > div,
+.toolbar,
+.category-filter,
+.search-box {
+    min-width: 0;
+}
+
+select {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: 0; /* allow shrinking below intrinsic content */
+    overflow: hidden;
+    text-overflow: ellipsis; /* show ellipsis for selected value if too long */
+    white-space: nowrap; /* keep single-line selected text */
+}
+
+/* Some browsers allow option wrapping; prefer readable option lists when possible */
+option { white-space: normal; }
+
 .category-filter select:focus {
     outline: none;
     border-color: var(--primary-color);
@@ -631,6 +652,11 @@ select option {
 
     .search-box,
     .category-filter select,
+    #locationFilterParent,
+    #locationFilterChild,
+    #itemLocationParent,
+    #itemLocationChild,
+    #sublocationParent,
     .btn-primary {
         width: 100%;
     }
