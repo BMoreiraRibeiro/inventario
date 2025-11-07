@@ -6,6 +6,8 @@ let locations = [];
 let categories = [];
 let pendingDeleteContext = null; // { type: 'item'|'category'|'location'|'sublocation', payload: ... }
 let modalZIndex = 1000;
+// When true, saves will not trigger immediate cloud sync; used while a modal is open so we sync once on close
+window.modalSyncSuppressed = false;
 
 function openModal(el) {
     if (!el) return;
@@ -34,6 +36,11 @@ function openModal(el) {
 
 function closeModalEl(el) {
     if (!el) return;
+    // If we were suppressing syncs while this modal was open, mark that we should sync now
+    const shouldTriggerSync = !!window.modalSyncSuppressed;
+    // Clear suppression immediately so saves after close behave normally
+    window.modalSyncSuppressed = false;
+
     el.classList.remove('active');
     // remove inline zIndex so other modals can reuse stacking
     el.style.zIndex = '';
@@ -43,6 +50,14 @@ function closeModalEl(el) {
         modalContent.style.marginTop = '';
         modalContent.style.maxHeight = '';
         modalContent.style.overflowY = '';
+    }
+    // Trigger a single full sync after closing the modal if we suppressed syncs
+    if (shouldTriggerSync) {
+        setTimeout(() => {
+            try {
+                if (typeof syncToCloud !== 'undefined' && !isSyncing) syncToCloud();
+            } catch (e) { console.warn('Error triggering sync after modal close', e); }
+        }, 250);
     }
 }
 
@@ -235,13 +250,15 @@ function loadLocations() {
 
 function saveLocations() {
     localStorage.setItem('locations', JSON.stringify(locations));
-    // Trigger cloud sync if available
-    if (typeof syncLocationsToCloud !== 'undefined' && !isSyncing) {
-        setTimeout(() => syncLocationsToCloud(), 100);
-    }
-    // Also request a full sync shortly after to ensure deletes/associations are propagated
-    if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-        setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
+    // Trigger cloud sync if available (skip when modalSyncSuppressed is true)
+    if (!window.modalSyncSuppressed) {
+        if (typeof syncLocationsToCloud !== 'undefined' && !isSyncing) {
+            setTimeout(() => syncLocationsToCloud(), 100);
+        }
+        // Also request a full sync shortly after to ensure deletes/associations are propagated
+        if (typeof syncToCloud !== 'undefined' && !isSyncing) {
+            setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
+        }
     }
 }
 
@@ -303,6 +320,8 @@ function populateLocationSelects(selectedParent, selectedChild) {
 
 // Modal-based location management (replaces prompt-based flows)
 function showAddLocationModal() {
+    // Suppress cloud sync until modal is closed
+    window.modalSyncSuppressed = true;
     const modal = document.getElementById('locationModal');
     const input = document.getElementById('locationName');
     if (!modal || !input) return;
@@ -334,6 +353,8 @@ function submitLocationForm(event) {
 }
 
 function showAddSublocationModal(parentName) {
+    // Suppress cloud sync until modal is closed
+    window.modalSyncSuppressed = true;
     const modal = document.getElementById('sublocationModal');
     const parentSel = document.getElementById('sublocationParent');
     const currentParent = parentName || (document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '');
@@ -482,13 +503,14 @@ function defaultCategoryMap() {
 
 function saveCategories() {
     localStorage.setItem('categories', JSON.stringify(categories));
-    // Trigger cloud sync if available
-    if (typeof syncCategoriesToCloud !== 'undefined' && !isSyncing) {
-        setTimeout(() => syncCategoriesToCloud(), 100);
-    }
-    // Also request a full sync shortly after to ensure deletes/associations are propagated
-    if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-        setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
+    // Trigger cloud sync if available (skip when modalSyncSuppressed is true)
+    if (!window.modalSyncSuppressed) {
+        if (typeof syncCategoriesToCloud !== 'undefined' && !isSyncing) {
+            setTimeout(() => syncCategoriesToCloud(), 100);
+        }
+        if (typeof syncToCloud !== 'undefined' && !isSyncing) {
+            setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
+        }
     }
 }
 
@@ -529,6 +551,8 @@ function populateCategorySelects(selected) {
 
 // Category modal
 function showAddCategoryModal() {
+    // Suppress cloud sync until modal is closed
+    window.modalSyncSuppressed = true;
     const modal = document.getElementById('categoryModal');
     const input = document.getElementById('categoryName');
     if (!modal || !input) return;
@@ -787,6 +811,8 @@ function editSublocationInline(parentName, subName) {
 
 // Delete modal
 function showDeleteModal(target) {
+    // Suppress cloud sync until delete modal is closed (we'll sync on close)
+    window.modalSyncSuppressed = true;
     // target can be number (item id) or object { type, payload }
     const modal = document.getElementById('deleteModal');
     const msg = document.getElementById('deleteMessage');
@@ -1135,18 +1161,21 @@ function loadInventory() {
 
 function saveInventory() {
     localStorage.setItem('inventory', JSON.stringify(inventory));
-    // Trigger cloud sync if available
-    if (typeof syncInventoryToCloud !== 'undefined' && !isSyncing) {
-        setTimeout(() => syncInventoryToCloud(), 100);
-    }
-    // Also request a full sync shortly after to ensure deletes/associations are propagated
-    if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-        setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
-    }
+        // Trigger cloud sync if available (skip when modalSyncSuppressed is true)
+        if (!window.modalSyncSuppressed) {
+            if (typeof syncInventoryToCloud !== 'undefined' && !isSyncing) {
+                setTimeout(() => syncInventoryToCloud(), 100);
+            }
+            if (typeof syncToCloud !== 'undefined' && !isSyncing) {
+                setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
+            }
+        }
 }
 
 // Funções de Modal
 function showAddItemModal() {
+    // Suppress cloud sync until modal is closed
+    window.modalSyncSuppressed = true;
     currentEditId = null;
     document.getElementById('modalTitle').textContent = 'Adicionar Item';
     document.getElementById('itemForm').reset();
@@ -1157,6 +1186,8 @@ function showAddItemModal() {
 }
 
 function showEditItemModal(id) {
+    // Suppress cloud sync until modal is closed
+    window.modalSyncSuppressed = true;
     const item = inventory.find(i => i.id === id);
     if (!item) return;
     
