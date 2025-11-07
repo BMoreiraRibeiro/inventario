@@ -255,7 +255,8 @@ async function loadFromCloud() {
             categories = cloudCategories.map(c => ({
                 key: c.key,
                 label: c.label,
-                icon: c.icon || ''
+                icon: c.icon || '',
+                subs: c.subs || []
             }));
             saveCategories();
             populateCategorySelects();

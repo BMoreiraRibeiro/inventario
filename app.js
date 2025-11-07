@@ -869,8 +869,9 @@ function saveItem(event) {
 function showDeleteModal(ctx) {
     // ctx: { type: 'item'|'category'|'location'|'sublocation', id?, key?, name?, parent? }
     pendingDeleteContext = ctx;
-    const modal = document.getElementById('deleteConfirmModal');
-    const msg = document.getElementById('deleteConfirmMessage');
+    // HTML uses id="deleteModal" and id="deleteMessage"
+    const modal = document.getElementById('deleteModal');
+    const msg = document.getElementById('deleteMessage');
     if (!modal || !msg) return;
     let text = 'Tem a certeza que deseja eliminar?';
     if (ctx.type === 'item') text = 'Eliminar este item definitivamente?';
@@ -882,7 +883,7 @@ function showDeleteModal(ctx) {
 }
 function closeDeleteModal() {
     pendingDeleteContext = null;
-    closeModalEl(document.getElementById('deleteConfirmModal'));
+    closeModalEl(document.getElementById('deleteModal'));
 }
 function confirmDeleteModal() {
     if (!pendingDeleteContext) return;
@@ -925,6 +926,9 @@ function confirmDeleteModal() {
     }
     closeDeleteModal();
 }
+
+// wrapper matching HTML onclick
+function confirmDelete() { return confirmDeleteModal(); }
 
 /* =======================
    Low Stock
