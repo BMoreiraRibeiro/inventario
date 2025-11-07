@@ -650,6 +650,62 @@ function removeSubcategory(categoryKey, subName) {
     cat.subs = (cat.subs || []).filter(s => s !== subName);
     saveCategories(); populateCategoryManager(); populateCategorySelects();
 }
+
+// Save changes made in the Category Manager: persist locally and optionally to Supabase
+async function saveCategoryManagerChanges() {
+    try {
+        console.log('💾 [CATEGORIES] Saving categories from manager...');
+        saveCategories();
+        // If supabase client available, sync categories
+        if (typeof syncCategoriesToCloud !== 'undefined' && typeof initSupabase !== 'undefined' && supabase) {
+            try {
+                await syncCategoriesToCloud();
+                showSyncStatus('✓ Categorias gravadas', true);
+                console.log('✅ [CATEGORIES] Synced to Supabase');
+            } catch (err) {
+                console.error('❌ [CATEGORIES] Error syncing categories to Supabase:', err);
+                showSyncStatus('✗ Erro ao gravar categorias', false);
+            }
+        } else {
+            console.log('⚠️ [CATEGORIES] Supabase not initialized - saved locally only');
+            showSyncStatus('Categorias gravadas localmente', true);
+        }
+        populateCategoryManager();
+        populateCategorySelects();
+        closeCategoryManager();
+    } catch (err) {
+        console.error('❌ [CATEGORIES] Save error:', err);
+        alert('Erro ao gravar categorias: ' + err.message);
+    }
+}
+
+// Save changes made in the Location Manager: persist locally and optionally to Supabase
+async function saveLocationManagerChanges() {
+    try {
+        console.log('💾 [LOCATIONS] Saving locations from manager...');
+        saveLocations();
+        if (typeof syncLocationsToCloud !== 'undefined' && typeof initSupabase !== 'undefined' && supabase) {
+            try {
+                await syncLocationsToCloud();
+                showSyncStatus('✓ Locais gravados', true);
+                console.log('✅ [LOCATIONS] Synced to Supabase');
+            } catch (err) {
+                console.error('❌ [LOCATIONS] Error syncing locations to Supabase:', err);
+                showSyncStatus('✗ Erro ao gravar locais', false);
+            }
+        } else {
+            console.log('⚠️ [LOCATIONS] Supabase not initialized - saved locally only');
+            showSyncStatus('Locais gravados localmente', true);
+        }
+        populateLocationManager();
+        populateLocationSelects();
+        populateLocationFilters();
+        closeLocationManager();
+    } catch (err) {
+        console.error('❌ [LOCATIONS] Save error:', err);
+        alert('Erro ao gravar locais: ' + err.message);
+    }
+}
 function editCategoryInline(key) {
     const list = document.getElementById('categoryManagerList');
     if (!list) return;
@@ -891,9 +947,27 @@ function confirmDeleteModal() {
     pendingDeleteContext = null;
 
     if (ctx.type === 'item') {
-        inventory = inventory.filter(i => i.id !== ctx.id);
+        const removedId = ctx.id;
+        inventory = inventory.filter(i => i.id !== removedId);
         saveInventory();
         renderItems(); updateStats();
+        // Delete from Supabase as well if available
+        (async () => {
+            try {
+                if (typeof supabase !== 'undefined' && supabase) {
+                    const { error } = await supabase.from('inventory_items').delete().eq('id', removedId);
+                    if (error) {
+                        console.error('❌ [STOCK] Error deleting item from Supabase:', error);
+                        showSyncStatus('✗ Erro ao eliminar item na cloud', false);
+                    } else {
+                        console.log('✅ [STOCK] Item deleted from Supabase');
+                        showSyncStatus('Item eliminado (cloud)', true);
+                    }
+                }
+            } catch (e) {
+                console.error('❌ [STOCK] Exception deleting item from Supabase:', e);
+            }
+        })();
     } else if (ctx.type === 'category') {
         categories = categories.filter(c => c.key !== ctx.key);
         // os itens mantêm a category_key existente; opcionalmente poderias limpar
