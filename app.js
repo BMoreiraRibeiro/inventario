@@ -4,54 +4,47 @@ let currentEditId = null;
 let isLoggedIn = false;
 let locations = [];
 let categories = [];
-let pendingDeleteContext = null; // { type: 'item'|'category'|'location'|'sublocation', payload: ... }
+let pendingDeleteContext = null; // { type: 'item'|'category'|'location'|'sublocation', payload... }
 let modalZIndex = 1000;
-// When true, saves will not trigger immediate cloud sync; used while a modal is open so we sync once on close
+// Quando true, não dispara sync enquanto o modal está aberto; sincroniza 1x ao fechar
 window.modalSyncSuppressed = false;
 
+/* =======================
+   Helpers de Modal
+   ======================= */
 function openModal(el) {
     if (!el) return;
-    // Ensure modal doesn't overlap the app header: position modal content below header
     const headerEl = document.querySelector('header');
     let headerH = 0;
     if (headerEl) {
-        try { headerH = headerEl.getBoundingClientRect().height || 0; } catch (e) { headerH = 0; }
+        try { headerH = headerEl.getBoundingClientRect().height || 0; } catch (_) {}
     }
     el.classList.add('active');
     modalZIndex += 1;
     el.style.zIndex = modalZIndex;
 
-    // Anchor modal-content below header and set a dynamic max-height so it only grows downward
     const modalContent = el.querySelector('.modal-content');
     if (modalContent) {
         modalContent.style.marginTop = (headerH + 12) + 'px';
-        // ensure it never exceeds viewport minus header area
         modalContent.style.maxHeight = 'calc(100vh - ' + (headerH + 40) + 'px)';
         modalContent.style.overflowY = 'auto';
     }
-
-    // ensure overlay scroll is at top so user can scroll modal-content to see top
-    try { el.scrollTop = 0; } catch (e) {}
+    try { el.scrollTop = 0; } catch (_) {}
 }
 
 function closeModalEl(el) {
     if (!el) return;
-    // If we were suppressing syncs while this modal was open, mark that we should sync now
     const shouldTriggerSync = !!window.modalSyncSuppressed;
-    // Clear suppression immediately so saves after close behave normally
     window.modalSyncSuppressed = false;
 
     el.classList.remove('active');
-    // remove inline zIndex so other modals can reuse stacking
     el.style.zIndex = '';
-    // clear any inline styles we set on modal-content when opening
     const modalContent = el.querySelector && el.querySelector('.modal-content');
     if (modalContent) {
         modalContent.style.marginTop = '';
         modalContent.style.maxHeight = '';
         modalContent.style.overflowY = '';
     }
-    // Trigger a single full sync after closing the modal if we suppressed syncs
     if (shouldTriggerSync) {
         setTimeout(() => {
             try {
@@ -61,13 +54,10 @@ function closeModalEl(el) {
     }
 }
 
-// Debounced request to trigger a cloud sync. Use this when you want to ensure
-// a sync runs shortly after a user action (e.g. after saving a new item) but
-// avoid flooding multiple quick calls. This will call the global `syncToCloud`
-// if available.
+// Debounce para pedir sync
 window._requestedSyncTimeout = null;
 function requestCloudSync(delay = 400) {
-    try { clearTimeout(window._requestedSyncTimeout); } catch (e) {}
+    try { clearTimeout(window._requestedSyncTimeout); } catch (_) {}
     window._requestedSyncTimeout = setTimeout(() => {
         try {
             if (typeof syncToCloud !== 'undefined' && !isSyncing) syncToCloud();
@@ -75,34 +65,45 @@ function requestCloudSync(delay = 400) {
     }, delay);
 }
 
-// Helper: slugify label to key
+// Helpers
 function slugify(s) {
     return s.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_\-]/g, '');
 }
+function defaultCategoryMap() {
+    return {
+        ferramentas: { label: 'Ferramentas', icon: '🔨' },
+        eletrico: { label: 'Material Elétrico', icon: '⚡' },
+        eletronico: { label: 'Componentes Eletrônicos', icon: '🔌' },
+        placas: { label: 'Placas e Arduinos', icon: '🖥️' },
+        ferragens: { label: 'Ferragens', icon: '🔩' },
+        outros: { label: 'Outros', icon: '📦' }
+    };
+}
+function getCategoryMeta(key) {
+    const map = defaultCategoryMap();
+    const found = categories.find(c => c.key === key);
+    if (found) return { label: found.label, icon: found.icon || '' };
+    if (map[key]) return map[key];
+    return { label: key || 'Sem categoria', icon: '' };
+}
 
-// Inicialização
-// Inicialização segura: se o DOM já estiver carregado, executa imediatamente.
+/* =======================
+   Inicialização
+   ======================= */
 function initApp() {
-    // Forçar mostrar inventário ao iniciar (carregar todos os items de imediato)
-    // O botão Sair foi escondido pelo pedido do utilizador.
+    // Forçar login ativo (como pediste)
     isLoggedIn = true;
-    try { sessionStorage.setItem('isLoggedIn', 'true'); } catch(e) {}
+    try { sessionStorage.setItem('isLoggedIn', 'true'); } catch(_) {}
     showInventoryScreen();
 
-    // Carregar dados do localStorage
     loadInventory();
-    
-    // Listener para Enter no login
+    // listeners de login (mantidos por compatibilidade)
     const pwd = document.getElementById('passwordInput');
     if (pwd) {
         pwd.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                login();
-            }
+            if (e.key === 'Enter') login();
         });
     }
-
-    // Listener para o botão de login (mais robusto que onclick inline)
     const loginBtn = document.getElementById('loginButton');
     if (loginBtn) {
         loginBtn.addEventListener('click', (e) => {
@@ -111,27 +112,22 @@ function initApp() {
         });
     }
 
-    // Carregar locais
     loadLocations();
     populateLocationSelects();
     populateLocationFilters();
-    // Carregar categorias
+
     loadCategories();
     populateCategorySelects();
 
-    // groupBy default listener
     const groupEl = document.getElementById('groupBy');
     if (groupEl) groupEl.addEventListener('change', () => renderItems());
 
-    // Render items right away
     renderItems();
     updateStats();
-    
-    // Initialize Supabase and sync
+
+    // Supabase
     if (typeof initSupabase !== 'undefined' && initSupabase()) {
-        // Load from cloud on first load
         loadFromCloud().then(() => {
-            // Setup auto-sync after initial load
             setupAutoSync();
         });
     }
@@ -140,13 +136,13 @@ function initApp() {
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
 } else {
-    // DOM já carregado — inicializar imediatamente
     initApp();
 }
 
-// Funções de Login
+/* =======================
+   Login (mantido)
+   ======================= */
 function showLoginScreen() {
-    console.log('Showing login screen');
     const loginEl = document.getElementById('loginScreen');
     const invEl = document.getElementById('inventoryScreen');
     if (loginEl) {
@@ -162,12 +158,10 @@ function showLoginScreen() {
 }
 
 function showInventoryScreen() {
-    console.log('Showing inventory screen');
     const loginEl = document.getElementById('loginScreen');
     const invEl = document.getElementById('inventoryScreen');
     if (loginEl) {
         loginEl.classList.remove('active');
-        // Forçar esconder, independentemente do CSS ou cache
         loginEl.style.display = 'none';
         loginEl.style.visibility = 'hidden';
         loginEl.style.zIndex = '';
@@ -182,76 +176,46 @@ function showInventoryScreen() {
 }
 
 function login() {
-    console.log('Login function called');
-    const password = document.getElementById('passwordInput').value;
+    const password = document.getElementById('passwordInput')?.value || '';
     const errorElement = document.getElementById('loginError');
-    
-    console.log('Password entered:', password ? '***' : 'empty');
-    console.log('CONFIG defined:', typeof CONFIG !== 'undefined');
-    console.log('Expected password:', CONFIG ? '***' : 'undefined');
-    
-    // Verificar se CONFIG está definido
     if (typeof CONFIG === 'undefined' || !CONFIG.PASSWORD) {
-        errorElement.textContent = '❌ Erro: Ficheiro de configuração não carregado';
-        console.error('CONFIG não está definido. Certifique-se que config.js está carregado.');
+        if (errorElement) errorElement.textContent = '❌ Erro: Ficheiro de configuração não carregado';
         return;
     }
-    
     if (password === CONFIG.PASSWORD) {
-        console.log('Password correct! Logging in...');
         isLoggedIn = true;
-        sessionStorage.setItem('isLoggedIn', 'true');
-        errorElement.textContent = '';
+        try { sessionStorage.setItem('isLoggedIn', 'true'); } catch(_) {}
+        if (errorElement) errorElement.textContent = '';
         showInventoryScreen();
-        console.log('Login screen should be hidden now');
     } else {
-        console.log('Password incorrect');
-        errorElement.textContent = '❌ Password incorreta';
-        document.getElementById('passwordInput').value = '';
-        document.getElementById('passwordInput').focus();
+        if (errorElement) errorElement.textContent = '❌ Password incorreta';
+        const pwd = document.getElementById('passwordInput');
+        if (pwd) { pwd.value = ''; pwd.focus(); }
     }
 }
 
 function logout() {
-    console.log('Logout requested');
     if (!confirm('Tem certeza que deseja sair?')) return;
     try {
         isLoggedIn = false;
         sessionStorage.removeItem('isLoggedIn');
-        // Esconder interface de inventário e mostrar login de forma forçada
-        const loginEl = document.getElementById('loginScreen');
-        const invEl = document.getElementById('inventoryScreen');
-        if (invEl) {
-            invEl.classList.remove('active');
-            invEl.style.display = 'none';
-            invEl.style.visibility = 'hidden';
-        }
-        if (loginEl) {
-            loginEl.classList.add('active');
-            loginEl.style.display = 'block';
-            loginEl.style.visibility = 'visible';
-            loginEl.style.zIndex = '9999';
-        }
-        const pwd = document.getElementById('passwordInput');
-        if (pwd) pwd.value = '';
-        console.log('Logged out — showing login screen');
-        // Garantir estado limpo
-        // reload para evitar problemas de cache/camadas sobrepostas
+        showLoginScreen();
         setTimeout(() => {
-            try { sessionStorage.removeItem('isLoggedIn'); } catch(e){}
+            try { sessionStorage.removeItem('isLoggedIn'); } catch(_){}
         }, 50);
     } catch (err) {
         console.error('Erro durante logout:', err);
     }
 }
 
-// Localizações
+/* =======================
+   Locais
+   ======================= */
 function loadLocations() {
     const saved = localStorage.getItem('locations');
     if (saved) {
-        try { locations = JSON.parse(saved); } catch(e) { locations = []; }
+        try { locations = JSON.parse(saved); } catch(_) { locations = []; }
     } else {
-        // Exemplo inicial
         locations = [
             { name: 'Armário', subs: ['Gaveta 1', 'Gaveta 2'] },
             { name: 'Gavetas', subs: ['Gaveta A', 'Gaveta B'] },
@@ -261,31 +225,25 @@ function loadLocations() {
         saveLocations();
     }
 }
-
 function saveLocations() {
     localStorage.setItem('locations', JSON.stringify(locations));
-    // Trigger cloud sync if available (skip when modalSyncSuppressed is true)
     if (!window.modalSyncSuppressed) {
         if (typeof syncLocationsToCloud !== 'undefined' && !isSyncing) {
             setTimeout(() => syncLocationsToCloud(), 100);
         }
-        // Also request a full sync shortly after to ensure deletes/associations are propagated
         if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
+            setTimeout(() => { try { syncToCloud(); } catch(_){} }, 500);
         }
     }
 }
-
 function populateLocationSelects(selectedParent, selectedChild) {
     const parentSel = document.getElementById('itemLocationParent');
     const childSel = document.getElementById('itemLocationChild');
     if (!parentSel || !childSel) return;
 
-    // Limpar
     parentSel.innerHTML = '';
     childSel.innerHTML = '';
 
-    // Opcao vazia
     const optEmpty = document.createElement('option');
     optEmpty.value = '';
     optEmpty.textContent = '— Nenhum —';
@@ -300,7 +258,6 @@ function populateLocationSelects(selectedParent, selectedChild) {
 
     if (selectedParent) parentSel.value = selectedParent;
 
-    // Preencher subs do parent selecionado
     const parent = locations.find(l => l.name === (selectedParent || parentSel.value));
     const subs = parent ? parent.subs : [];
 
@@ -318,7 +275,6 @@ function populateLocationSelects(selectedParent, selectedChild) {
 
     if (selectedChild) childSel.value = selectedChild;
 
-    // Atualizar subs quando mudar parent
     parentSel.onchange = () => {
         const p = locations.find(l => l.name === parentSel.value);
         childSel.innerHTML = '';
@@ -332,9 +288,8 @@ function populateLocationSelects(selectedParent, selectedChild) {
     };
 }
 
-// Modal-based location management (replaces prompt-based flows)
+// Modais de locais
 function showAddLocationModal() {
-    // Suppress cloud sync until modal is closed
     window.modalSyncSuppressed = true;
     const modal = document.getElementById('locationModal');
     const input = document.getElementById('locationName');
@@ -343,37 +298,34 @@ function showAddLocationModal() {
     openModal(modal);
     setTimeout(() => input.focus(), 50);
 }
-
 function closeLocationModal() {
-    const modal = document.getElementById('locationModal');
-    if (!modal) return;
-    closeModalEl(modal);
+    closeModalEl(document.getElementById('locationModal'));
 }
-
 function submitLocationForm(event) {
     event.preventDefault();
     const name = document.getElementById('locationName').value.trim();
     const errEl = document.getElementById('locationError');
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     if (!name) return;
-    if (locations.find(l => l.name === name)) { if (errEl) { errEl.textContent = 'Local já existe'; errEl.style.display = 'block'; } return; }
+    if (locations.find(l => l.name === name)) {
+        if (errEl) { errEl.textContent = 'Local já existe'; errEl.style.display = 'block'; }
+        return;
+    }
     locations.push({ name, subs: [] });
     saveLocations();
     populateLocationSelects(name, '');
     populateLocationFilters(name, '');
-    // Update location manager UI immediately if it's open
     if (typeof populateLocationManager !== 'undefined') populateLocationManager();
     closeLocationModal();
 }
 
 function showAddSublocationModal(parentName) {
-    // Suppress cloud sync until modal is closed
     window.modalSyncSuppressed = true;
     const modal = document.getElementById('sublocationModal');
     const parentSel = document.getElementById('sublocationParent');
     const currentParent = parentName || (document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '');
     if (!modal || !parentSel) return;
-    // populate parent select
+
     parentSel.innerHTML = '';
     locations.forEach(loc => {
         const o = document.createElement('option');
@@ -382,17 +334,14 @@ function showAddSublocationModal(parentName) {
         parentSel.appendChild(o);
     });
     if (currentParent) parentSel.value = currentParent;
-    document.getElementById('sublocationName').value = '';
+    const nameInput = document.getElementById('sublocationName');
+    if (nameInput) nameInput.value = '';
     openModal(modal);
-    setTimeout(() => document.getElementById('sublocationName').focus(), 50);
+    setTimeout(() => nameInput && nameInput.focus(), 50);
 }
-
 function closeSublocationModal() {
-    const modal = document.getElementById('sublocationModal');
-    if (!modal) return;
-    closeModalEl(modal);
+    closeModalEl(document.getElementById('sublocationModal'));
 }
-
 function submitSublocationForm(event) {
     event.preventDefault();
     const parentName = document.getElementById('sublocationParent').value;
@@ -408,17 +357,14 @@ function submitSublocationForm(event) {
     saveLocations();
     populateLocationSelects(parentName, subName);
     populateLocationFilters(parentName, subName);
-    // ensure item modal selects reflect the new values
+
     const itemParent = document.getElementById('itemLocationParent');
     const itemChild = document.getElementById('itemLocationChild');
     if (itemParent) itemParent.value = parentName;
     if (itemChild) {
-        // repopulate children for the selected parent
-        const evt = new Event('change');
         if (itemParent.onchange) itemParent.onchange();
         itemChild.value = subName;
     }
-    // Update location manager UI immediately if it's open
     if (typeof populateLocationManager !== 'undefined') populateLocationManager();
     closeSublocationModal();
 }
@@ -445,7 +391,6 @@ function populateLocationFilters(selectedParent, selectedChild) {
 
     if (selectedParent) parentSel.value = selectedParent;
 
-    // preencher child
     const selectedParentName = selectedParent || parentSel.value;
     const parent = locations.find(l => l.name === selectedParentName);
 
@@ -477,20 +422,21 @@ function populateLocationFilters(selectedParent, selectedChild) {
     };
 }
 
-// Categories model: array of objects { key, label, icon }
+/* =======================
+   Categorias
+   ======================= */
 function loadCategories() {
     const saved = localStorage.getItem('categories');
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
-            // support legacy array of strings
             if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
                 const map = defaultCategoryMap();
                 categories = parsed.map(k => ({ key: k, label: (map[k] && map[k].label) ? map[k].label : k, icon: (map[k] && map[k].icon) ? map[k].icon : '' }));
             } else {
                 categories = parsed;
             }
-        } catch (e) { categories = []; }
+        } catch (_) { categories = []; }
     } else {
         categories = [
             { key: 'ferramentas', label: 'Ferramentas', icon: '🔨' },
@@ -503,71 +449,22 @@ function loadCategories() {
         saveCategories();
     }
 }
-
-function defaultCategoryMap() {
-    return {
-        ferramentas: { label: 'Ferramentas', icon: '🔨' },
-        eletrico: { label: 'Material Elétrico', icon: '⚡' },
-        eletronico: { label: 'Componentes Eletrônicos', icon: '🔌' },
-        placas: { label: 'Placas e Arduinos', icon: '🖥️' },
-        ferragens: { label: 'Ferragens', icon: '🔩' },
-        outros: { label: 'Outros', icon: '📦' }
-    };
-}
-
 function saveCategories() {
     localStorage.setItem('categories', JSON.stringify(categories));
-    // Trigger cloud sync if available (skip when modalSyncSuppressed is true)
     if (!window.modalSyncSuppressed) {
         if (typeof syncCategoriesToCloud !== 'undefined' && !isSyncing) {
             setTimeout(() => syncCategoriesToCloud(), 100);
         }
         if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
+            setTimeout(() => { try { syncToCloud(); } catch(_){} }, 500);
         }
     }
 }
-
-// Inventory persistence: load and save local inventory to localStorage
-function loadInventory() {
-    const saved = localStorage.getItem('inventory');
-    if (saved) {
-        try { inventory = JSON.parse(saved); } catch (e) { inventory = []; }
-    } else {
-        inventory = [];
-        saveInventory();
-    }
-}
-
-function saveInventory() {
-    try {
-        console.log('💾 [PERSIST] saveInventory called, items count:', inventory.length);
-        localStorage.setItem('inventory', JSON.stringify(inventory));
-        console.log('✅ [PERSIST] Inventory saved to localStorage');
-    } catch (e) {
-        console.error('❌ [PERSIST] Could not persist inventory to localStorage:', e);
-        console.warn('⚠️ Could not persist inventory to localStorage', e);
-    }
-
-    // Trigger cloud sync if available (skip when modalSyncSuppressed is true)
-    if (!window.modalSyncSuppressed) {
-        console.log('☁️ [PERSIST] Triggering cloud sync (modal not suppressed)');
-        if (typeof syncInventoryToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => syncInventoryToCloud(), 100);
-        }
-        if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => { try { syncToCloud(); } catch(e){ console.error('❌ [PERSIST] syncToCloud error:', e); } }, 500);
-        }
-    } else {
-        console.log('⏸️ [PERSIST] Cloud sync suppressed (modal open)');
-    }
-}
-
 function populateCategorySelects(selected) {
     const filter = document.getElementById('categoryFilter');
     const itemSel = document.getElementById('itemCategory');
     if (!filter || !itemSel) return;
-    // preserve current filter
+
     const currentFilter = filter.value || 'all';
     filter.innerHTML = '';
     const optAll = document.createElement('option');
@@ -583,7 +480,6 @@ function populateCategorySelects(selected) {
     });
     filter.value = selected === 'filter' ? currentFilter : (filter.value || 'all');
 
-    // item select
     itemSel.innerHTML = '';
     const empty = document.createElement('option');
     empty.value = '';
@@ -598,24 +494,21 @@ function populateCategorySelects(selected) {
     if (selected && selected !== 'filter') itemSel.value = selected;
 }
 
-// Category modal
+// Modal de criar categoria
 function showAddCategoryModal() {
-    // Suppress cloud sync until modal is closed
     window.modalSyncSuppressed = true;
     const modal = document.getElementById('categoryModal');
     const input = document.getElementById('categoryName');
     if (!modal || !input) return;
     input.value = '';
+    const icon = document.getElementById('categoryIcon');
+    if (icon) icon.value = '';
     openModal(modal);
     setTimeout(() => input.focus(), 50);
 }
-
 function closeCategoryModal() {
-    const modal = document.getElementById('categoryModal');
-    if (!modal) return;
-    closeModalEl(modal);
+    closeModalEl(document.getElementById('categoryModal'));
 }
-
 function submitCategoryForm(event) {
     event.preventDefault();
     const name = document.getElementById('categoryName').value.trim();
@@ -636,20 +529,14 @@ function submitCategoryForm(event) {
     closeCategoryModal();
 }
 
-// Category manager
+// Gestor de categorias
 function showCategoryManager() {
     populateCategoryManager();
-    const modal = document.getElementById('categoryManagerModal');
-    if (!modal) return;
-    openModal(modal);
+    openModal(document.getElementById('categoryManagerModal'));
 }
-
 function closeCategoryManager() {
-    const modal = document.getElementById('categoryManagerModal');
-    if (!modal) return;
-    closeModalEl(modal);
+    closeModalEl(document.getElementById('categoryManagerModal'));
 }
-
 function populateCategoryManager() {
     const list = document.getElementById('categoryManagerList');
     if (!list) return;
@@ -664,23 +551,18 @@ function populateCategoryManager() {
         const actions = document.createElement('div');
         actions.style.display = 'flex';
         actions.style.gap = '8px';
-    const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
-    const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.textContent = 'Eliminar';
+        const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
+        const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.textContent = 'Eliminar';
         editBtn.onclick = () => editCategoryInline(cat.key);
-        delBtn.onclick = () => {
-            showDeleteModal({ type: 'category', key: cat.key });
-        };
+        delBtn.onclick = () => showDeleteModal({ type: 'category', key: cat.key });
         actions.appendChild(editBtn); actions.appendChild(delBtn);
         row.appendChild(actions);
         list.appendChild(row);
     });
 }
-
 function editCategoryInline(key) {
-    const cat = categories.find(c => c.key === key);
-    if (!cat) return;
     const list = document.getElementById('categoryManagerList');
-    // replace content with editable form
+    if (!list) return;
     list.innerHTML = '';
     categories.forEach(c => {
         const row = document.createElement('div');
@@ -701,10 +583,10 @@ function editCategoryInline(key) {
                 const mgrErr = document.getElementById('categoryManagerError'); if (mgrErr) { mgrErr.style.display='none'; mgrErr.textContent=''; }
                 if (!newLabel) { if (mgrErr) { mgrErr.textContent = 'Nome inválido'; mgrErr.style.display = 'block'; } return; }
                 const newKey = slugify(newLabel);
-                // if key changed and conflicts
                 if (newKey !== c.key && categories.find(x => x.key === newKey)) { if (mgrErr) { mgrErr.textContent = 'Key já existe'; mgrErr.style.display = 'block'; } return; }
                 c.label = newLabel; c.icon = newIcon; c.key = newKey;
                 saveCategories(); populateCategorySelects(); populateCategoryManager();
+                renderItems(); // atualizar labels nos cards
             };
             cancel.onclick = () => populateCategoryManager();
             actions.appendChild(save); actions.appendChild(cancel);
@@ -716,20 +598,16 @@ function editCategoryInline(key) {
     });
 }
 
-// Location manager
+/* =======================
+   Gestor de Locais
+   ======================= */
 function showLocationManager() {
     populateLocationManager();
-    const modal = document.getElementById('locationManagerModal');
-    if (!modal) return;
-    openModal(modal);
+    openModal(document.getElementById('locationManagerModal'));
 }
-
 function closeLocationManager() {
-    const modal = document.getElementById('locationManagerModal');
-    if (!modal) return;
-    closeModalEl(modal);
+    closeModalEl(document.getElementById('locationManagerModal'));
 }
-
 function populateLocationManager() {
     const list = document.getElementById('locationManagerList');
     if (!list) return;
@@ -738,701 +616,499 @@ function populateLocationManager() {
         const container = document.createElement('div');
         container.style.borderBottom = '1px solid var(--border-color)';
         container.style.padding = '8px 0';
+
         const header = document.createElement('div');
         header.style.display = 'flex'; header.style.justifyContent = 'space-between'; header.style.alignItems = 'center';
         header.innerHTML = `<strong>${loc.name}</strong>`;
+
         const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.gap = '8px';
-    const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
-    const addSubBtn = document.createElement('button'); addSubBtn.className = 'btn-secondary'; addSubBtn.textContent = '+ Sub';
-    const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.textContent = 'Eliminar';
+        const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
+        const addSubBtn = document.createElement('button'); addSubBtn.className = 'btn-secondary'; addSubBtn.textContent = '+ Sub';
+        const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.textContent = 'Eliminar';
+
         editBtn.onclick = () => editLocationInline(loc.name);
         addSubBtn.onclick = () => showAddSublocationModal(loc.name);
-            delBtn.onclick = () => {
-                showDeleteModal({ type: 'location', name: loc.name });
-            };
-        actions.appendChild(editBtn); actions.appendChild(addSubBtn); actions.appendChild(delBtn);
+        delBtn.onclick = () => showDeleteModal({ type: 'location', name: loc.name });
+
+        actions.appendChild(editBtn);
+        actions.appendChild(addSubBtn);
+        actions.appendChild(delBtn);
         header.appendChild(actions);
         container.appendChild(header);
 
-        if (loc.subs && loc.subs.length) {
-            const ul = document.createElement('ul'); ul.style.marginTop = '8px';
-            loc.subs.forEach(sub => {
-                const li = document.createElement('li'); li.style.display = 'flex'; li.style.justifyContent = 'space-between'; li.style.alignItems = 'center';
-                li.innerHTML = `<span>${sub}</span>`;
-                const subActions = document.createElement('div'); subActions.style.display = 'flex'; subActions.style.gap = '8px';
-                const editSub = document.createElement('button'); editSub.className = 'btn-primary'; editSub.textContent = 'Editar';
-                const delSub = document.createElement('button'); delSub.className = 'btn-delete'; delSub.textContent = 'Eliminar';
-                editSub.onclick = () => editSublocationInline(loc.name, sub);
-                delSub.onclick = () => {
-                    showDeleteModal({ type: 'sublocation', parent: loc.name, name: sub });
-                };
-                subActions.appendChild(editSub); subActions.appendChild(delSub);
-                li.appendChild(subActions);
-                ul.appendChild(li);
-            });
-            container.appendChild(ul);
-        }
-
+        const subsDiv = document.createElement('div');
+        subsDiv.style.marginLeft = '16px';
+        loc.subs.forEach(sub => {
+            const subRow = document.createElement('div');
+            subRow.style.display = 'flex';
+            subRow.style.justifyContent = 'space-between';
+            subRow.style.alignItems = 'center';
+            subRow.style.padding = '4px 0';
+            subRow.innerHTML = `<span>${sub}</span>`;
+            const subActions = document.createElement('div');
+            const delSubBtn = document.createElement('button');
+            delSubBtn.className = 'btn-delete';
+            delSubBtn.textContent = 'Eliminar Sub';
+            delSubBtn.onclick = () => showDeleteModal({ type: 'sublocation', parent: loc.name, name: sub });
+            subActions.appendChild(delSubBtn);
+            subRow.appendChild(subActions);
+            subsDiv.appendChild(subRow);
+        });
+        container.appendChild(subsDiv);
         list.appendChild(container);
     });
 }
-
 function editLocationInline(name) {
-    const loc = locations.find(l => l.name === name);
-    if (!loc) return;
-    const list = document.getElementById('locationManagerList'); if (!list) return;
+    const list = document.getElementById('locationManagerList');
+    if (!list) return;
     list.innerHTML = '';
-    locations.forEach(l => {
-        const container = document.createElement('div');
-        container.style.padding = '8px 0'; container.style.borderBottom = '1px solid var(--border-color)';
-        if (l.name === name) {
+    locations.forEach(loc => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        row.style.padding = '8px 0';
+        if (loc.name === name) {
             const left = document.createElement('div');
-            left.innerHTML = `<input id="editLocationName" value="${l.name}" style="padding:6px; margin-right:8px;">`;
-            const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.gap = '8px';
+            left.innerHTML = `<input id="editLocName" value="${loc.name}" style="padding:6px; margin-right:8px;">`;
+            const actions = document.createElement('div');
+            actions.style.display = 'flex'; actions.style.gap = '8px';
             const save = document.createElement('button'); save.className = 'btn-primary'; save.textContent = 'Salvar';
             const cancel = document.createElement('button'); cancel.className = 'btn-secondary'; cancel.textContent = 'Cancelar';
             save.onclick = () => {
-                const newName = document.getElementById('editLocationName').value.trim();
-                const mgrErr = document.getElementById('locationManagerError'); if (mgrErr) { mgrErr.style.display='none'; mgrErr.textContent=''; }
-                if (!newName) { if (mgrErr) { mgrErr.textContent = 'Nome inválido'; mgrErr.style.display='block'; } return; }
-                // update name and any inventory references
-                l.name = newName;
-                locations = locations.map(x => x === l ? l : x);
-                // update inventory items that referenced old name
-                inventory.forEach(it => { if (it.locationParent === name) it.locationParent = newName; });
-                saveLocations(); saveInventory(); populateLocationSelects(); populateLocationFilters(); populateLocationManager();
+                const newName = document.getElementById('editLocName').value.trim();
+                if (!newName) return;
+                if (newName !== loc.name && locations.find(l => l.name === newName)) return;
+                // atualizar refs de itens
+                inventory.forEach(it => {
+                    if (it.locationParent === loc.name) it.locationParent = newName;
+                });
+                loc.name = newName;
+                saveLocations(); saveInventory();
+                populateLocationSelects(); populateLocationFilters();
+                populateLocationManager();
+                renderItems();
             };
             cancel.onclick = () => populateLocationManager();
+            row.appendChild(left); row.appendChild(actions);
             actions.appendChild(save); actions.appendChild(cancel);
-            container.appendChild(left); container.appendChild(actions);
         } else {
-            const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between'; header.style.alignItems='center';
-            header.innerHTML = `<strong>${l.name}</strong>`;
-            container.appendChild(header);
+            row.innerHTML = `<div><strong>${loc.name}</strong></div>`;
         }
-        list.appendChild(container);
+        list.appendChild(row);
     });
 }
 
-function editSublocationInline(parentName, subName) {
-    const parent = locations.find(l => l.name === parentName);
-    if (!parent) return;
-    const list = document.getElementById('locationManagerList'); if (!list) return;
-    list.innerHTML = '';
-    locations.forEach(l => {
-        const container = document.createElement('div');
-        container.style.padding = '8px 0'; container.style.borderBottom = '1px solid var(--border-color)';
-        const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between'; header.style.alignItems='center';
-        header.innerHTML = `<strong>${l.name}</strong>`;
-        container.appendChild(header);
-        if (l.name === parentName) {
-            const ul = document.createElement('ul'); ul.style.marginTop='8px';
-            l.subs.forEach(s => {
-                const li = document.createElement('li'); li.style.display='flex'; li.style.justifyContent='space-between'; li.style.alignItems='center';
-                if (s === subName) {
-                    const left = document.createElement('div');
-                    left.innerHTML = `<input id="editSubName" value="${s}" style="padding:6px; margin-right:8px;">`;
-                    const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px';
-                    const save = document.createElement('button'); save.className='btn-primary'; save.textContent='Salvar';
-                    const cancel = document.createElement('button'); cancel.className='btn-secondary'; cancel.textContent='Cancelar';
-                    save.onclick = () => {
-                        const newName = document.getElementById('editSubName').value.trim();
-                        const mgrErr = document.getElementById('locationManagerError'); if (mgrErr) { mgrErr.style.display='none'; mgrErr.textContent=''; }
-                        if (!newName) { if (mgrErr) { mgrErr.textContent = 'Nome inválido'; mgrErr.style.display='block'; } return; }
-                        l.subs = l.subs.map(x => x === s ? newName : x);
-                        // update inventory references
-                        inventory.forEach(it => { if (it.locationParent === parentName && it.locationChild === s) it.locationChild = newName; });
-                        saveLocations(); saveInventory(); populateLocationSelects(); populateLocationFilters(); populateLocationManager();
-                    };
-                    cancel.onclick = () => populateLocationManager();
-                    actions.appendChild(save); actions.appendChild(cancel);
-                    li.appendChild(left); li.appendChild(actions);
-                } else {
-                    li.innerHTML = `<span>${s}</span>`;
-                }
-                ul.appendChild(li);
-            });
-            container.appendChild(ul);
-        }
-        list.appendChild(container);
-    });
+/* =======================
+   Persistência de Itens
+   ======================= */
+function loadInventory() {
+    const saved = localStorage.getItem('inventory');
+    if (saved) {
+        try { inventory = JSON.parse(saved); } catch (_) { inventory = []; }
+    } else {
+        inventory = [];
+        saveInventory();
+    }
 }
-
-// Delete modal
-function showDeleteModal(target) {
+function saveInventory() {
     try {
-        console.log('🗑️ [DELETE] showDeleteModal called with target:', target, 'type:', typeof target);
-        
-        // Suppress cloud sync until delete modal is closed (we'll sync on close)
-        window.modalSyncSuppressed = true;
-        console.log('🗑️ [DELETE] Cloud sync suppressed');
-        
-        // target can be number (item id) or object { type, payload }
-        const modal = document.getElementById('deleteModal');
-        const msg = document.getElementById('deleteMessage');
-        if (!modal || !msg) {
-            console.error('❌ [DELETE] Modal or message element not found');
-            return;
+        localStorage.setItem('inventory', JSON.stringify(inventory));
+    } catch (e) {
+        console.error('❌ [PERSIST] Could not persist inventory to localStorage:', e);
+    }
+    if (!window.modalSyncSuppressed) {
+        if (typeof syncInventoryToCloud !== 'undefined' && !isSyncing) {
+            setTimeout(() => syncInventoryToCloud(), 100);
         }
-        
-        let text = 'Tem certeza que deseja eliminar este item?';
-        if (typeof target === 'number' || typeof target === 'string') {
-            // legacy: item id
-            const id = target;
-            const item = inventory.find(i => String(i.id) === String(id));
-            if (!item) {
-                console.error('❌ [DELETE] Item not found for id:', id);
-                return;
-            }
-            console.log('🗑️ [DELETE] Item found for deletion:', item.name);
-            pendingDeleteContext = { type: 'item', payload: { id } };
-            text = `Tem certeza que deseja eliminar "${item.name}"?`;
-        } else if (typeof target === 'object' && target) {
-            const t = target.type;
-            if (t === 'category') {
-                const cat = categories.find(c => c.key === target.key);
-                pendingDeleteContext = { type: 'category', payload: { key: target.key } };
-                text = `Eliminar categoria "${cat ? cat.label : target.key}" e remover associação de itens?`;
-                console.log('🗑️ [DELETE] Category deletion prepared:', target.key);
-            } else if (t === 'location') {
-                pendingDeleteContext = { type: 'location', payload: { name: target.name } };
-                text = `Eliminar local "${target.name}" e todos os seus sub-locais?`;
-                console.log('🗑️ [DELETE] Location deletion prepared:', target.name);
-            } else if (t === 'sublocation') {
-                pendingDeleteContext = { type: 'sublocation', payload: { parent: target.parent, name: target.name } };
-                text = `Eliminar sub-local "${target.name}" do local "${target.parent}"?`;
-                console.log('🗑️ [DELETE] Sublocation deletion prepared:', target.name);
-            } else {
-                // fallback
-                console.error('❌ [DELETE] Unknown delete type:', t);
-                pendingDeleteContext = null;
-                return;
-            }
-        } else {
-            console.error('❌ [DELETE] Invalid target type');
-            return;
+        if (typeof syncToCloud !== 'undefined' && !isSyncing) {
+            setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
         }
-        
-        msg.textContent = text;
-        console.log('🗑️ [DELETE] Opening confirmation modal');
-        openModal(modal);
-    } catch (error) {
-        console.error('❌ [DELETE] Exception in showDeleteModal:', error);
-        console.error('❌ [DELETE] Stack:', error.stack);
-        alert('Erro ao abrir modal de eliminação: ' + error.message);
     }
 }
 
-function closeDeleteModal() {
-    const modal = document.getElementById('deleteModal');
-    if (!modal) return;
-    closeModalEl(modal);
-    pendingDeleteContext = null;
-}
-
-function confirmDelete() {
-    try {
-        console.log('🗑️ [DELETE] confirmDelete called, context:', pendingDeleteContext);
-        
-        if (!pendingDeleteContext) {
-            console.warn('⚠️ [DELETE] No pending delete context');
-            return closeDeleteModal();
-        }
-        
-        const ctx = pendingDeleteContext;
-        pendingDeleteContext = null;
-        
-        if (ctx.type === 'item') {
-            const id = ctx.payload.id;
-            const itemToDelete = inventory.find(i => String(i.id) === String(id));
-            
-            console.log('🗑️ [DELETE] Deleting item:', itemToDelete?.name, 'id:', id);
-            
-            const beforeCount = inventory.length;
-            inventory = inventory.filter(i => String(i.id) !== String(id));
-            const afterCount = inventory.length;
-            
-            console.log(`🗑️ [DELETE] Inventory count: ${beforeCount} → ${afterCount}`);
-            
-            console.log('🗑️ [DELETE] Calling saveInventory()');
-            saveInventory();
-            
-            console.log('🗑️ [DELETE] Closing modal');
-            closeDeleteModal();
-            
-            console.log('🗑️ [DELETE] Rendering items');
-            renderItems();
-            updateStats();
-            
-            console.log('✅ [DELETE] Item deleted successfully');
-            return;
-        }
-        if (ctx.type === 'category') {
-            const key = ctx.payload.key;
-            console.log('🗑️ [DELETE] Deleting category:', key);
-            
-            // remove category and clear from items
-            categories = categories.filter(c => c.key !== key);
-            inventory.forEach(it => { if (it.category === key) it.category = ''; });
-            saveCategories(); saveInventory();
-            populateCategorySelects(); populateCategoryManager();
-            closeDeleteModal();
-            renderItems(); updateStats();
-            
-            console.log('✅ [DELETE] Category deleted successfully');
-            return;
-        }
-        if (ctx.type === 'location') {
-            const name = ctx.payload.name;
-            console.log('🗑️ [DELETE] Deleting location:', name);
-            
-            locations = locations.filter(l => l.name !== name);
-            // clear location references in items
-            inventory.forEach(it => { if (it.locationParent === name) { it.locationParent = ''; it.locationChild = ''; } });
-            saveLocations(); saveInventory();
-            populateLocationSelects(); populateLocationFilters(); populateLocationManager();
-            closeDeleteModal(); renderItems(); updateStats();
-            
-            console.log('✅ [DELETE] Location deleted successfully');
-            return;
-        }
-        if (ctx.type === 'sublocation') {
-            const parent = ctx.payload.parent;
-            const name = ctx.payload.name;
-            console.log('🗑️ [DELETE] Deleting sublocation:', name, 'from parent:', parent);
-            
-            const loc = locations.find(l => l.name === parent);
-            if (loc) loc.subs = loc.subs.filter(s => s !== name);
-            // clear item references to this sublocation
-            inventory.forEach(it => { if (it.locationParent === parent && it.locationChild === name) it.locationChild = ''; });
-            saveLocations(); saveInventory();
-            populateLocationSelects(); populateLocationFilters(); populateLocationManager();
-            closeDeleteModal(); renderItems(); updateStats();
-            
-            console.log('✅ [DELETE] Sublocation deleted successfully');
-            return;
-        }
-    } catch (error) {
-        console.error('❌ [DELETE] Exception in confirmDelete:', error);
-        console.error('❌ [DELETE] Stack:', error.stack);
-        alert('Erro ao eliminar: ' + error.message);
-        closeDeleteModal();
-    }
-}
-
-// Low-stock modal: open, close and populate
-function showLowStockModal() {
-    const modal = document.getElementById('lowStockModal');
-    if (!modal) return;
-    populateLowStockList();
-    openModal(modal);
-}
-
-function closeLowStockModal() {
-    const modal = document.getElementById('lowStockModal');
-    if (!modal) return;
-    closeModalEl(modal);
-}
-
-function populateLowStockList() {
-    const container = document.getElementById('lowStockList');
-    if (!container) return;
-    container.innerHTML = '';
-    const lowItems = inventory.filter(item => item.quantity <= (item.minStock || 0));
-    if (!lowItems.length) {
-        container.innerHTML = '<div style="padding:12px;color:var(--text-secondary);">Nenhum item com stock baixo</div>';
-        return;
-    }
-    lowItems.forEach(it => {
-        const row = document.createElement('div');
-        row.className = 'low-row';
-        const name = document.createElement('div'); name.className = 'name';
-        name.textContent = it.name;
-        const qty = document.createElement('div'); qty.className = 'qty';
-        qty.textContent = `${it.quantity}`;
-        row.appendChild(name);
-        row.appendChild(qty);
-        // make row clickable to open edit modal for this item
-        row.style.cursor = 'pointer';
-        row.onclick = () => {
-            closeLowStockModal();
-            // small timeout to ensure modal closed before opening next
-            setTimeout(() => showEditItemModal(it.id), 80);
-        };
-        container.appendChild(row);
-    });
-}
-
-function onLocationFilterChange() {
-    // update child options and then filter
-    const parentSel = document.getElementById('locationFilterParent');
-    const childSel = document.getElementById('locationFilterChild');
-    if (!parentSel || !childSel) return;
-    const p = locations.find(l => l.name === parentSel.value);
-    childSel.innerHTML = '';
-    const optAllChild = document.createElement('option');
-    optAllChild.value = 'all';
-    optAllChild.textContent = 'Todos os Sub-Locais';
-    childSel.appendChild(optAllChild);
-    (p ? p.subs : []).forEach(s => {
-        const oc = document.createElement('option');
-        oc.value = s;
-        oc.textContent = s;
-        childSel.appendChild(oc);
-    });
-    filterItems();
-}
-
-// Funções de Modal
+/* =======================
+   Modal de Item
+   ======================= */
 function showAddItemModal() {
-    // Suppress cloud sync until modal is closed
     window.modalSyncSuppressed = true;
     currentEditId = null;
+    const modal = document.getElementById('itemModal');
+    if (!modal) return;
     document.getElementById('modalTitle').textContent = 'Adicionar Item';
-    document.getElementById('itemForm').reset();
-    // Garantir que os selects de localização estão populados ao abrir modal de adicionar
-    populateLocationSelects('', '');
-    populateLocationFilters();
-    openModal(document.getElementById('itemModal'));
+    document.getElementById('itemName').value = '';
+    document.getElementById('itemQuantity').value = 1;
+    document.getElementById('itemMinStock').value = 1;
+    document.getElementById('itemNotes').value = '';
+    populateCategorySelects();
+    populateLocationSelects();
+    openModal(modal);
 }
-
-function showEditItemModal(id) {
-    try {
-        console.log('🔵 [EDIT] showEditItemModal called with id:', id, 'type:', typeof id);
-        
-        // Suppress cloud sync until modal is closed
-        window.modalSyncSuppressed = true;
-        console.log('🔵 [EDIT] Cloud sync suppressed');
-        
-        const item = inventory.find(i => String(i.id) === String(id));
-        if (!item) {
-            console.error('❌ [EDIT] Item not found for id:', id);
-            return;
-        }
-        console.log('✅ [EDIT] Item found:', item.name, 'id:', item.id);
-        
-        currentEditId = id;
-    document.getElementById('modalTitle').textContent = 'Editar Item';
-    document.getElementById('itemName').value = item.name;
-    document.getElementById('itemCategory').value = item.category;
-    document.getElementById('itemQuantity').value = item.quantity;
-    document.getElementById('itemMinStock').value = item.minStock;
-    // Determinar parent/child (compatível com dados antigos que têm apenas 'location')
-    function parseLocationString(s) {
-        if (!s) return { parent: '', child: '' };
-        // tentar vários separadores comuns
-        const seps = [' / ', '/', ' - ', ' -', '- ', '-', ','];
-        let parts = [s];
-        for (const sep of seps) {
-            if (s.includes(sep)) { parts = s.split(sep).map(p => p.trim()).filter(Boolean); break; }
-        }
-        if (parts.length === 1) return { parent: '', child: parts[0] };
-        return { parent: parts[0], child: parts.slice(1).join(' / ') };
-    }
-
-    let parentVal = item.locationParent || '';
-    let childVal = item.locationChild || '';
-    if (!parentVal && !childVal && item.location) {
-        const parsed = parseLocationString(item.location);
-        parentVal = parsed.parent;
-        childVal = parsed.child;
-    }
-
-    // Popular selects de localização e escolher os valores existentes
-    populateLocationSelects(parentVal, childVal);
-    const parentSel = document.getElementById('itemLocationParent');
-    const childSel = document.getElementById('itemLocationChild');
-    if (parentSel) parentSel.value = parentVal || '';
-    if (childSel) childSel.value = childVal || '';
-    document.getElementById('itemNotes').value = item.notes || '';
-    
-    console.log('🔵 [EDIT] Opening modal for editing');
-    openModal(document.getElementById('itemModal'));
-    } catch (error) {
-        console.error('❌ [EDIT] Exception in showEditItemModal:', error);
-        console.error('❌ [EDIT] Stack:', error.stack);
-        alert('Erro ao abrir modal de edição: ' + error.message);
-    }
-}
-
 function closeModal() {
     closeModalEl(document.getElementById('itemModal'));
-    currentEditId = null;
 }
-
-// Funções CRUD
 function saveItem(event) {
-    try {
-        console.log('💾 [SAVE] saveItem called, currentEditId:', currentEditId);
-        event.preventDefault();
-        
-        const item = {
-            id: currentEditId || Date.now(),
-            name: document.getElementById('itemName').value.trim(),
-            category: document.getElementById('itemCategory').value,
-            quantity: parseInt(document.getElementById('itemQuantity').value),
-            minStock: parseInt(document.getElementById('itemMinStock').value),
-            locationParent: document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '',
-            locationChild: document.getElementById('itemLocationChild') ? document.getElementById('itemLocationChild').value : '',
-            notes: document.getElementById('itemNotes').value.trim(),
-            createdAt: currentEditId ? (inventory.find(i => String(i.id) === String(currentEditId)) || {}).createdAt : new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
-        
-        console.log('💾 [SAVE] Item data:', { id: item.id, name: item.name, quantity: item.quantity });
-        
-        if (currentEditId) {
-            // Editar item existente
-            const index = inventory.findIndex(i => String(i.id) === String(currentEditId));
-            if (index !== -1) {
-                console.log('💾 [SAVE] Updating existing item at index:', index);
-                inventory[index] = item;
-            } else {
-                console.error('❌ [SAVE] Item index not found for id:', currentEditId);
-            }
-        } else {
-            // Adicionar novo item
-            console.log('💾 [SAVE] Adding new item');
-            inventory.push(item);
-        }
-        
-        console.log('💾 [SAVE] Calling saveInventory()');
-        saveInventory();
-        
-        console.log('💾 [SAVE] Closing modal');
-        closeModal();
-        
-        console.log('💾 [SAVE] Rendering items');
-        renderItems();
-        updateStats();
-        
-        // Ensure we request a cloud sync shortly after saving an item so the DB
-        // is updated even when modal suppression logic is in use.
-        console.log('💾 [SAVE] Requesting cloud sync');
-        try { requestCloudSync(300); } catch (e) { console.warn('⚠️ [SAVE] requestCloudSync not available:', e); }
-        
-        console.log('✅ [SAVE] Item saved successfully');
-    } catch (error) {
-        console.error('❌ [SAVE] Exception in saveItem:', error);
-        console.error('❌ [SAVE] Stack:', error.stack);
-        alert('Erro ao guardar item: ' + error.message);
-    }
-}
+    event.preventDefault();
+    const name = document.getElementById('itemName').value.trim();
+    const quantity = parseInt(document.getElementById('itemQuantity').value || '0', 10);
+    const minStock = parseInt(document.getElementById('itemMinStock').value || '0', 10);
+    const category = document.getElementById('itemCategory').value;
+    const locationParent = document.getElementById('itemLocationParent').value || '';
+    const locationChild = document.getElementById('itemLocationChild').value || '';
+    const notes = document.getElementById('itemNotes').value.trim();
 
-function deleteItem(id) {
-    // Backwards-compatible wrapper -> open modal confirmation
-    showDeleteModal(id);
-}
-
-function adjustStock(id, delta) {
-    try {
-        console.log('📊 [STOCK] adjustStock called with id:', id, 'delta:', delta);
-        
-        const item = inventory.find(i => String(i.id) === String(id));
-        if (!item) {
-            console.error('❌ [STOCK] Item not found for id:', id);
-            return;
-        }
-        
-        const oldQuantity = item.quantity;
-        item.quantity = Math.max(0, item.quantity + delta);
-        item.updatedAt = new Date().toISOString();
-        
-        console.log(`📊 [STOCK] Stock adjusted for "${item.name}": ${oldQuantity} → ${item.quantity}`);
-        
-        console.log('📊 [STOCK] Calling saveInventory()');
-        saveInventory();
-        
-        console.log('📊 [STOCK] Rendering items');
-        renderItems();
-        updateStats();
-        
-        console.log('✅ [STOCK] Stock adjustment completed');
-    } catch (error) {
-        console.error('❌ [STOCK] Exception in adjustStock:', error);
-        console.error('❌ [STOCK] Stack:', error.stack);
-        alert('Erro ao ajustar stock: ' + error.message);
-    }
-}
-
-// Funções de Renderização
-function renderItems() {
-    console.log('🎨 [RENDER] renderItems called, inventory count:', inventory.length);
-    
-    // Validate inventory items have IDs
-    const itemsWithoutId = inventory.filter(item => !item || item.id === undefined || item.id === null);
-    if (itemsWithoutId.length > 0) {
-        console.error('❌ [RENDER] Found', itemsWithoutId.length, 'items without valid IDs:', itemsWithoutId);
-    }
-    
-    const container = document.getElementById('itemsList');
-    const emptyMessage = document.getElementById('emptyMessage');
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const categoryFilter = document.getElementById('categoryFilter').value;
-    const groupBy = (document.getElementById('groupBy') ? document.getElementById('groupBy').value : 'none');
-    
-    // Filtrar items (incluir parent/child location e filtros selects de Local/Sub-Local)
-    const locParentFilter = (document.getElementById('locationFilterParent') ? document.getElementById('locationFilterParent').value : 'all');
-    const locChildFilter = (document.getElementById('locationFilterChild') ? document.getElementById('locationFilterChild').value : 'all');
-
-    let filteredItems = inventory.filter(item => {
-        const nameMatch = item.name && item.name.toLowerCase().includes(searchTerm);
-        const notesMatch = item.notes && item.notes.toLowerCase().includes(searchTerm);
-        const parentMatch = item.locationParent && item.locationParent.toLowerCase().includes(searchTerm);
-        const childMatch = item.locationChild && item.locationChild.toLowerCase().includes(searchTerm);
-        const matchesSearch = nameMatch || notesMatch || parentMatch || childMatch;
-        const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
-
-        // Location filter logic:
-        let matchesLocation = true;
-        if (locParentFilter && locParentFilter !== 'all') {
-            // match if item's parent equals filter OR child contains the parent name (legacy strings)
-            const lp = (item.locationParent || '').toLowerCase();
-            const lc = (item.locationChild || '').toLowerCase();
-            const sel = locParentFilter.toLowerCase();
-            matchesLocation = (lp === sel) || (lc === sel) || (lc.includes(sel));
-        }
-        if (matchesLocation && locChildFilter && locChildFilter !== 'all') {
-            const lc = (item.locationChild || '').toLowerCase();
-            const selc = locChildFilter.toLowerCase();
-            matchesLocation = (lc === selc) || (lc.includes(selc));
-        }
-
-        return matchesSearch && matchesCategory && matchesLocation;
-    });
-    
-    if (filteredItems.length === 0) {
-        container.innerHTML = '';
-        emptyMessage.classList.add('show');
-        return;
-    }
-    
-    emptyMessage.classList.remove('show');
-    
-    // Ordenar por nome
-    filteredItems.sort((a, b) => a.name.localeCompare(b.name));
-
-    // Render helper
-    function renderItemCard(item) {
-        // Validate item ID
-        if (!item || item.id === undefined || item.id === null) {
-            console.error('❌ [RENDER] Item without valid ID:', item);
-            return '<div class="item-card"><div style="color:red; padding:12px;">Erro: Item sem ID válido</div></div>';
-        }
-        
-        try {
-            const itemId = String(item.id);
-            const safeId = JSON.stringify(itemId);
-            
-            // Log item being rendered (only in debug mode)
-            if (window.DEBUG_RENDER) {
-                console.log('🎨 [RENDER] Rendering item:', item.name, 'id:', itemId, 'type:', typeof item.id);
-            }
-            
-            const catObj = categories.find(c => c.key === item.category) || { icon: '', label: item.category || '' };
-            const isLowStock = item.quantity <= item.minStock && item.quantity > 0;
-            const isEmpty = item.quantity === 0;
-            let stockClass = '';
-            let stockBadge = '';
-            if (isEmpty) { stockClass = 'empty'; stockBadge = '<span class="stock-badge empty">SEM STOCK</span>'; }
-            else if (isLowStock) { stockClass = 'low'; stockBadge = '<span class="stock-badge low">STOCK BAIXO</span>'; }
-            const displayLocation = (item.locationParent ? item.locationParent + (item.locationChild ? ' / ' + item.locationChild : '') : (item.locationChild || ''));
-            
-            return `
-                <div class="item-card" data-item-id="${itemId}">
-                    <div class="item-header">
-                        <div>
-                            <div class="item-title">${item.name || 'Sem nome'}</div>
-                            <div class="item-category">${catObj.icon || ''} ${catObj.label || item.category}</div>
-                        </div>
-                    </div>
-                    <div class="item-details">
-                        <div class="item-detail"><span>Quantidade:</span><span class="stock-quantity ${stockClass}">${item.quantity || 0} ${stockBadge}</span></div>
-                        <div class="item-detail"><span>Stock Mínimo:</span><span>${item.minStock || 0}</span></div>
-                        ${displayLocation ? `\n                        <div class="item-location">📍 ${displayLocation}</div>\n                    ` : ''}
-                        ${item.notes ? `\n                        <div class="item-notes">💬 ${item.notes}</div>\n                    ` : ''}
-                    </div>
-                    <div class="stock-controls"><button class="stock-btn minus" onclick="adjustStock(${safeId}, -1)" ${item.quantity === 0 ? 'disabled' : ''}>−</button><button class="stock-btn plus" onclick="adjustStock(${safeId}, 1)">+</button></div>
-                    <div class="item-actions"><button class="btn-edit" onclick="showEditItemModal(${safeId})">✏️ Editar</button><button class="btn-delete" onclick="showDeleteModal(${safeId})">🗑️ Eliminar</button></div>
-                </div>
-            `;
-        } catch (error) {
-            console.error('❌ [RENDER] Exception rendering item card:', error);
-            console.error('❌ [RENDER] Item data:', item);
-            return '<div class="item-card"><div style="color:red; padding:12px;">Erro ao renderizar item</div></div>';
-        }
-    }
-
-    // Agrupar se necessário
-    if (groupBy && groupBy !== 'none') {
-        const groups = {};
-        filteredItems.forEach(item => {
-            const key = groupBy === 'locationParent' ? (item.locationParent || '— Sem Local —') : (item.locationChild || '— Sem Sub-Local —');
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(item);
-        });
-        let html = '';
-        Object.keys(groups).forEach(g => {
-            html += `<div class="group-section"><h3 class="group-title">${g}</h3><div class="group-items">`;
-            groups[g].forEach(it => { html += renderItemCard(it); });
-            html += `</div></div>`;
-        });
-        container.innerHTML = html;
+    if (!name || !category) {
+        const err = document.getElementById('itemCategoryError');
+        if (err && !category) { err.textContent = 'Selecione uma categoria'; err.style.display = 'block'; }
         return;
     }
 
-    container.innerHTML = filteredItems.map(item => renderItemCard(item)).join('');
-}
+    if (currentEditId) {
+        const idx = inventory.findIndex(i => i.id === currentEditId);
+        if (idx !== -1) {
+            inventory[idx] = { ...inventory[idx], name, quantity, minStock, category, locationParent, locationChild, notes };
+        }
+    } else {
+        const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'local-' + Date.now() + '-' + Math.floor(Math.random()*100000);
+        inventory.push({ id, name, quantity, minStock, category, locationParent, locationChild, notes, createdAt: Date.now() });
+    }
 
-function filterItems() {
+    saveInventory();
     renderItems();
     updateStats();
+    closeModal();
 }
 
+/* =======================
+   Eliminar (Modal genérico)
+   ======================= */
+function showDeleteModal(ctx) {
+    // ctx: { type: 'item'|'category'|'location'|'sublocation', id?, key?, name?, parent? }
+    pendingDeleteContext = ctx;
+    const modal = document.getElementById('deleteConfirmModal');
+    const msg = document.getElementById('deleteConfirmMessage');
+    if (!modal || !msg) return;
+    let text = 'Tem a certeza que deseja eliminar?';
+    if (ctx.type === 'item') text = 'Eliminar este item definitivamente?';
+    if (ctx.type === 'category') text = `Eliminar a categoria "${ctx.key}"? (os itens mantêm a key atual)`;
+    if (ctx.type === 'location') text = `Eliminar o local "${ctx.name}" e todos os seus sub-locais?`;
+    if (ctx.type === 'sublocation') text = `Eliminar o sub-local "${ctx.name}" do local "${ctx.parent}"?`;
+    msg.textContent = text;
+    openModal(modal);
+}
+function closeDeleteModal() {
+    pendingDeleteContext = null;
+    closeModalEl(document.getElementById('deleteConfirmModal'));
+}
+function confirmDeleteModal() {
+    if (!pendingDeleteContext) return;
+    const ctx = pendingDeleteContext;
+    pendingDeleteContext = null;
+
+    if (ctx.type === 'item') {
+        inventory = inventory.filter(i => i.id !== ctx.id);
+        saveInventory();
+        renderItems(); updateStats();
+    } else if (ctx.type === 'category') {
+        categories = categories.filter(c => c.key !== ctx.key);
+        // os itens mantêm a category_key existente; opcionalmente poderias limpar
+        saveCategories();
+        populateCategorySelects();
+        renderItems();
+    } else if (ctx.type === 'location') {
+        const name = ctx.name;
+        locations = locations.filter(l => l.name !== name);
+        // limpar refs
+        inventory.forEach(it => {
+            if (it.locationParent === name) { it.locationParent = ''; it.locationChild = ''; }
+        });
+        saveLocations(); saveInventory();
+        populateLocationFilters(); populateLocationSelects();
+        renderItems();
+    } else if (ctx.type === 'sublocation') {
+        const parent = locations.find(l => l.name === ctx.parent);
+        if (parent) {
+            parent.subs = parent.subs.filter(s => s !== ctx.name);
+            // limpar refs
+            inventory.forEach(it => {
+                if (it.locationParent === ctx.parent && it.locationChild === ctx.name) it.locationChild = '';
+            });
+            saveLocations(); saveInventory();
+            populateLocationFilters(); populateLocationSelects();
+            populateLocationManager();
+            renderItems();
+        }
+    }
+    closeDeleteModal();
+}
+
+/* =======================
+   Low Stock
+   ======================= */
+function showLowStockModal() {
+    const modal = document.getElementById('lowStockModal');
+    const list = document.getElementById('lowStockList');
+    if (!modal || !list) return;
+    list.innerHTML = '';
+    const lows = inventory.filter(i => (i.minStock || 0) > 0 && i.quantity <= i.minStock)
+                          .sort((a,b)=> (a.quantity - a.minStock) - (b.quantity - b.minStock));
+    if (lows.length === 0) {
+        const row = document.createElement('div');
+        row.style.padding = '8px';
+        row.textContent = 'Sem itens com stock baixo ✅';
+        list.appendChild(row);
+    } else {
+        lows.forEach(it => {
+            const r = document.createElement('div');
+            r.className = 'low-row';
+            r.onclick = () => editItem(it.id);
+            r.innerHTML = `<span class="name">${it.name}</span><span class="qty">${it.quantity} / min ${it.minStock}</span>`;
+            list.appendChild(r);
+        });
+    }
+    openModal(modal);
+}
+function closeLowStockModal() { closeModalEl(document.getElementById('lowStockModal')); }
+
+/* =======================
+   Renderização de Itens
+   ======================= */
+function onLocationFilterChange() {
+    // Mantido por compatibilidade com onchange inline no HTML
+    filterItems();
+}
+function filterItems() {
+    renderItems();
+}
+
+function groupItems(items, groupBy) {
+    if (groupBy === 'locationParent') {
+        const map = {};
+        items.forEach(i => {
+            const k = i.locationParent || '— Sem Local —';
+            if (!map[k]) map[k] = [];
+            map[k].push(i);
+        });
+        return map;
+    }
+    if (groupBy === 'locationChild') {
+        const map = {};
+        items.forEach(i => {
+            const k = (i.locationParent ? (i.locationParent + ' / ') : '') + (i.locationChild || '— Sem Sub-Local —');
+            if (!map[k]) map[k] = [];
+            map[k].push(i);
+        });
+        return map;
+    }
+    return null;
+}
+
+function renderItems() {
+    const list = document.getElementById('itemsList');
+    const empty = document.getElementById('emptyMessage');
+    if (!list || !empty) return;
+
+    const q = (document.getElementById('searchInput')?.value || '').toLowerCase().trim();
+    const cat = (document.getElementById('categoryFilter')?.value || 'all');
+    const pLoc = (document.getElementById('locationFilterParent')?.value || 'all');
+    const cLoc = (document.getElementById('locationFilterChild')?.value || 'all');
+    const groupBy = (document.getElementById('groupBy')?.value || 'none');
+
+    let items = inventory.slice();
+
+    if (q) {
+        items = items.filter(i =>
+            (i.name || '').toLowerCase().includes(q) ||
+            (i.notes || '').toLowerCase().includes(q) ||
+            (i.locationParent || '').toLowerCase().includes(q) ||
+            (i.locationChild || '').toLowerCase().includes(q)
+        );
+    }
+    if (cat !== 'all') items = items.filter(i => (i.category || '') === cat);
+    if (pLoc !== 'all') items = items.filter(i => (i.locationParent || '') === pLoc);
+    if (cLoc !== 'all') items = items.filter(i => (i.locationChild || '') === cLoc);
+
+    items.sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+
+    list.innerHTML = '';
+    empty.style.display = items.length ? 'none' : 'block';
+
+    const grouped = groupItems(items, groupBy);
+    if (grouped) {
+        Object.keys(grouped).sort().forEach(groupKey => {
+            const groupHeader = document.createElement('div');
+            groupHeader.style.gridColumn = '1 / -1';
+            groupHeader.style.color = 'var(--text-secondary)';
+            groupHeader.style.margin = '8px 0 4px';
+            groupHeader.textContent = groupKey;
+            list.appendChild(groupHeader);
+            grouped[groupKey].forEach(renderCard);
+        });
+    } else {
+        items.forEach(renderCard);
+    }
+
+    function renderCard(item) {
+        const meta = getCategoryMeta(item.category);
+        const card = document.createElement('div');
+        card.className = 'item-card';
+
+        const header = document.createElement('div');
+        header.className = 'item-header';
+
+        const left = document.createElement('div');
+        left.innerHTML = `
+            <div class="item-title">${item.name}</div>
+            <div class="item-category">${(meta.icon||'')} ${meta.label}</div>
+        `;
+
+        const right = document.createElement('div');
+        right.style.display = 'flex';
+        right.style.gap = '6px';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn-secondary';
+        editBtn.textContent = 'Editar';
+        editBtn.onclick = () => editItem(item.id);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn-delete';
+        delBtn.textContent = 'Eliminar';
+        delBtn.onclick = () => showDeleteModal({ type: 'item', id: item.id });
+
+        right.appendChild(editBtn);
+        right.appendChild(delBtn);
+        header.appendChild(left);
+        header.appendChild(right);
+
+        const details = document.createElement('div');
+        details.className = 'item-details';
+        const locStr = (item.locationParent || '—') + (item.locationChild ? ' / ' + item.locationChild : '');
+        details.innerHTML = `
+            <div class="item-detail"><span>Quantidade</span><span>${item.quantity}</span></div>
+            <div class="item-detail"><span>Stock mínimo</span><span>${item.minStock || 0}</span></div>
+            <div class="item-detail"><span>Local</span><span>${locStr}</span></div>
+            ${item.notes ? `<div class="item-notes">${item.notes}</div>` : ''}
+        `;
+
+        const actions = document.createElement('div');
+        actions.className = 'item-actions';
+
+        const decBtn = document.createElement('button');
+        decBtn.className = 'btn-secondary';
+        decBtn.textContent = '−';
+        decBtn.onclick = () => decrementQuantity(item.id);
+
+        const incBtn = document.createElement('button');
+        incBtn.className = 'btn-primary';
+        incBtn.textContent = '+';
+        incBtn.onclick = () => incrementQuantity(item.id);
+
+        actions.appendChild(decBtn);
+        actions.appendChild(incBtn);
+
+        card.appendChild(header);
+        card.appendChild(details);
+        card.appendChild(actions);
+
+        // badges de stock
+        if ((item.minStock || 0) > 0 && item.quantity <= item.minStock) {
+            const badge = document.createElement('div');
+            badge.className = 'badge warning';
+            badge.textContent = 'Stock baixo';
+            card.appendChild(badge);
+        }
+        if (item.quantity === 0) {
+            const badge = document.createElement('div');
+            badge.className = 'badge danger';
+            badge.textContent = 'Sem stock';
+            card.appendChild(badge);
+        }
+
+        list.appendChild(card);
+    }
+}
+
+/* =======================
+   Editar / Incrementar / Decrementar
+   ======================= */
+function editItem(id) {
+    window.modalSyncSuppressed = true;
+    const item = inventory.find(i => i.id === id);
+    if (!item) return;
+    currentEditId = id;
+    const modal = document.getElementById('itemModal');
+    if (!modal) return;
+
+    document.getElementById('modalTitle').textContent = 'Editar Item';
+    document.getElementById('itemName').value = item.name || '';
+    document.getElementById('itemQuantity').value = item.quantity ?? 0;
+    document.getElementById('itemMinStock').value = item.minStock ?? 0;
+    populateCategorySelects(item.category || '');
+    populateLocationSelects(item.locationParent || '', item.locationChild || '');
+    document.getElementById('itemNotes').value = item.notes || '';
+
+    openModal(modal);
+}
+function incrementQuantity(id) {
+    const it = inventory.find(i => i.id === id);
+    if (!it) return;
+    it.quantity = (parseInt(it.quantity || '0', 10) + 1);
+    saveInventory();
+    renderItems(); updateStats();
+}
+function decrementQuantity(id) {
+    const it = inventory.find(i => i.id === id);
+    if (!it) return;
+    const q = parseInt(it.quantity || '0', 10);
+    it.quantity = Math.max(0, q - 1);
+    saveInventory();
+    renderItems(); updateStats();
+}
+
+/* =======================
+   Estatísticas
+   ======================= */
 function updateStats() {
-    // Total de itens
-    document.getElementById('totalItems').textContent = inventory.length;
-    
-    // Total de categorias únicas (se existir o elemento)
-    const uniqueCategories = new Set(inventory.map(item => item.category));
-    const catEl = document.getElementById('totalCategories');
-    if (catEl) catEl.textContent = uniqueCategories.size;
-    
-    // Items com stock baixo
-    const lowStockCount = inventory.filter(item => 
-        item.quantity <= item.minStock && item.quantity >= 0
-    ).length;
-    document.getElementById('lowStock').textContent = lowStockCount;
+    const totalEl = document.getElementById('totalItems');
+    const lowEl = document.getElementById('lowStock');
+    if (totalEl) totalEl.textContent = String(inventory.length);
+    const low = inventory.filter(i => (i.minStock || 0) > 0 && i.quantity <= i.minStock).length;
+    if (lowEl) lowEl.textContent = String(low);
 }
 
-// Fechar modal clicando fora
-window.onclick = function(event) {
-    const itemModalEl = document.getElementById('itemModal');
-    const locModalEl = document.getElementById('locationModal');
-    const subModalEl = document.getElementById('sublocationModal');
-    const catModalEl = document.getElementById('categoryModal');
-    const catMgrEl = document.getElementById('categoryManagerModal');
-    const locMgrEl = document.getElementById('locationManagerModal');
-    const deleteEl = document.getElementById('deleteModal');
-    if (event.target === itemModalEl) {
-        closeModal();
-    }
-    if (event.target === locModalEl) {
-        closeLocationModal();
-    }
-    if (event.target === subModalEl) {
-        closeSublocationModal();
-    }
-    if (event.target === catModalEl) {
-        closeCategoryModal();
-    }
-    if (event.target === catMgrEl) {
-        closeCategoryManager();
-    }
-    if (event.target === locMgrEl) {
-        closeLocationManager();
-    }
-    if (event.target === deleteEl) {
-        closeDeleteModal();
-    }
-}
+/* =======================
+   Expor funções globais (para onclick inline no HTML)
+   ======================= */
+window.showAddItemModal = showAddItemModal;
+window.closeModal = closeModal;
+window.saveItem = saveItem;
+window.filterItems = filterItems;
+window.onLocationFilterChange = onLocationFilterChange;
+window.renderItems = renderItems;
+window.updateStats = updateStats;
+window.showCategoryManager = showCategoryManager;
+window.closeCategoryManager = closeCategoryManager;
+window.showLocationManager = showLocationManager;
+window.closeLocationManager = closeLocationManager;
+window.showAddLocationModal = showAddLocationModal;
+window.closeLocationModal = closeLocationModal;
+window.submitLocationForm = submitLocationForm;
+window.showAddSublocationModal = showAddSublocationModal;
+window.closeSublocationModal = closeSublocationModal;
+window.submitSublocationForm = submitSublocationForm;
+window.showAddCategoryModal = showAddCategoryModal;
+window.closeCategoryModal = closeCategoryModal;
+window.submitCategoryForm = submitCategoryForm;
+window.populateCategoryManager = populateCategoryManager;
+window.populateLocationManager = populateLocationManager;
+window.showDeleteModal = showDeleteModal;
+window.closeDeleteModal = closeDeleteModal;
+window.confirmDeleteModal = confirmDeleteModal;
+window.showLowStockModal = showLowStockModal;
+window.closeLowStockModal = closeLowStockModal;
+window.editItem = editItem;
+window.incrementQuantity = incrementQuantity;
+window.decrementQuantity = decrementQuantity;
+window.logout = logout;
+window.login = login;
