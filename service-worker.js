@@ -65,8 +65,10 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((cached) => {
       const networkFetch = fetch(request)
         .then((response) => {
+          // Clone BEFORE consuming the response body
           if (response && response.status === 200) {
-            caches.open(CACHE_NAME).then(cache => cache.put(request, response.clone()));
+            const clonedResponse = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clonedResponse));
           }
           return response;
         })
