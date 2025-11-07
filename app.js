@@ -541,19 +541,25 @@ function loadInventory() {
 
 function saveInventory() {
     try {
+        console.log('💾 [PERSIST] saveInventory called, items count:', inventory.length);
         localStorage.setItem('inventory', JSON.stringify(inventory));
+        console.log('✅ [PERSIST] Inventory saved to localStorage');
     } catch (e) {
+        console.error('❌ [PERSIST] Could not persist inventory to localStorage:', e);
         console.warn('⚠️ Could not persist inventory to localStorage', e);
     }
 
     // Trigger cloud sync if available (skip when modalSyncSuppressed is true)
     if (!window.modalSyncSuppressed) {
+        console.log('☁️ [PERSIST] Triggering cloud sync (modal not suppressed)');
         if (typeof syncInventoryToCloud !== 'undefined' && !isSyncing) {
             setTimeout(() => syncInventoryToCloud(), 100);
         }
         if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
+            setTimeout(() => { try { syncToCloud(); } catch(e){ console.error('❌ [PERSIST] syncToCloud error:', e); } }, 500);
         }
+    } else {
+        console.log('⏸️ [PERSIST] Cloud sync suppressed (modal open)');
     }
 }
 
@@ -854,42 +860,67 @@ function editSublocationInline(parentName, subName) {
 
 // Delete modal
 function showDeleteModal(target) {
-    // Suppress cloud sync until delete modal is closed (we'll sync on close)
-    window.modalSyncSuppressed = true;
-    // target can be number (item id) or object { type, payload }
-    const modal = document.getElementById('deleteModal');
-    const msg = document.getElementById('deleteMessage');
-    if (!modal || !msg) return;
-    let text = 'Tem certeza que deseja eliminar este item?';
-    if (typeof target === 'number' || typeof target === 'string') {
-        // legacy: item id
-        const id = target;
-        const item = inventory.find(i => String(i.id) === String(id));
-        if (!item) return;
-        pendingDeleteContext = { type: 'item', payload: { id } };
-        text = `Tem certeza que deseja eliminar "${item.name}"?`;
-    } else if (typeof target === 'object' && target) {
-        const t = target.type;
-        if (t === 'category') {
-            const cat = categories.find(c => c.key === target.key);
-            pendingDeleteContext = { type: 'category', payload: { key: target.key } };
-            text = `Eliminar categoria "${cat ? cat.label : target.key}" e remover associação de itens?`;
-        } else if (t === 'location') {
-            pendingDeleteContext = { type: 'location', payload: { name: target.name } };
-            text = `Eliminar local "${target.name}" e todos os seus sub-locais?`;
-        } else if (t === 'sublocation') {
-            pendingDeleteContext = { type: 'sublocation', payload: { parent: target.parent, name: target.name } };
-            text = `Eliminar sub-local "${target.name}" do local "${target.parent}"?`;
-        } else {
-            // fallback
-            pendingDeleteContext = null;
+    try {
+        console.log('🗑️ [DELETE] showDeleteModal called with target:', target, 'type:', typeof target);
+        
+        // Suppress cloud sync until delete modal is closed (we'll sync on close)
+        window.modalSyncSuppressed = true;
+        console.log('🗑️ [DELETE] Cloud sync suppressed');
+        
+        // target can be number (item id) or object { type, payload }
+        const modal = document.getElementById('deleteModal');
+        const msg = document.getElementById('deleteMessage');
+        if (!modal || !msg) {
+            console.error('❌ [DELETE] Modal or message element not found');
             return;
         }
-    } else {
-        return;
+        
+        let text = 'Tem certeza que deseja eliminar este item?';
+        if (typeof target === 'number' || typeof target === 'string') {
+            // legacy: item id
+            const id = target;
+            const item = inventory.find(i => String(i.id) === String(id));
+            if (!item) {
+                console.error('❌ [DELETE] Item not found for id:', id);
+                return;
+            }
+            console.log('🗑️ [DELETE] Item found for deletion:', item.name);
+            pendingDeleteContext = { type: 'item', payload: { id } };
+            text = `Tem certeza que deseja eliminar "${item.name}"?`;
+        } else if (typeof target === 'object' && target) {
+            const t = target.type;
+            if (t === 'category') {
+                const cat = categories.find(c => c.key === target.key);
+                pendingDeleteContext = { type: 'category', payload: { key: target.key } };
+                text = `Eliminar categoria "${cat ? cat.label : target.key}" e remover associação de itens?`;
+                console.log('🗑️ [DELETE] Category deletion prepared:', target.key);
+            } else if (t === 'location') {
+                pendingDeleteContext = { type: 'location', payload: { name: target.name } };
+                text = `Eliminar local "${target.name}" e todos os seus sub-locais?`;
+                console.log('🗑️ [DELETE] Location deletion prepared:', target.name);
+            } else if (t === 'sublocation') {
+                pendingDeleteContext = { type: 'sublocation', payload: { parent: target.parent, name: target.name } };
+                text = `Eliminar sub-local "${target.name}" do local "${target.parent}"?`;
+                console.log('🗑️ [DELETE] Sublocation deletion prepared:', target.name);
+            } else {
+                // fallback
+                console.error('❌ [DELETE] Unknown delete type:', t);
+                pendingDeleteContext = null;
+                return;
+            }
+        } else {
+            console.error('❌ [DELETE] Invalid target type');
+            return;
+        }
+        
+        msg.textContent = text;
+        console.log('🗑️ [DELETE] Opening confirmation modal');
+        openModal(modal);
+    } catch (error) {
+        console.error('❌ [DELETE] Exception in showDeleteModal:', error);
+        console.error('❌ [DELETE] Stack:', error.stack);
+        alert('Erro ao abrir modal de eliminação: ' + error.message);
     }
-    msg.textContent = text;
-    openModal(modal);
 }
 
 function closeDeleteModal() {
@@ -900,50 +931,92 @@ function closeDeleteModal() {
 }
 
 function confirmDelete() {
-    if (!pendingDeleteContext) return closeDeleteModal();
-    const ctx = pendingDeleteContext;
-    pendingDeleteContext = null;
-    if (ctx.type === 'item') {
-        const id = ctx.payload.id;
-        inventory = inventory.filter(i => String(i.id) !== String(id));
-        saveInventory();
+    try {
+        console.log('🗑️ [DELETE] confirmDelete called, context:', pendingDeleteContext);
+        
+        if (!pendingDeleteContext) {
+            console.warn('⚠️ [DELETE] No pending delete context');
+            return closeDeleteModal();
+        }
+        
+        const ctx = pendingDeleteContext;
+        pendingDeleteContext = null;
+        
+        if (ctx.type === 'item') {
+            const id = ctx.payload.id;
+            const itemToDelete = inventory.find(i => String(i.id) === String(id));
+            
+            console.log('🗑️ [DELETE] Deleting item:', itemToDelete?.name, 'id:', id);
+            
+            const beforeCount = inventory.length;
+            inventory = inventory.filter(i => String(i.id) !== String(id));
+            const afterCount = inventory.length;
+            
+            console.log(`🗑️ [DELETE] Inventory count: ${beforeCount} → ${afterCount}`);
+            
+            console.log('🗑️ [DELETE] Calling saveInventory()');
+            saveInventory();
+            
+            console.log('🗑️ [DELETE] Closing modal');
+            closeDeleteModal();
+            
+            console.log('🗑️ [DELETE] Rendering items');
+            renderItems();
+            updateStats();
+            
+            console.log('✅ [DELETE] Item deleted successfully');
+            return;
+        }
+        if (ctx.type === 'category') {
+            const key = ctx.payload.key;
+            console.log('🗑️ [DELETE] Deleting category:', key);
+            
+            // remove category and clear from items
+            categories = categories.filter(c => c.key !== key);
+            inventory.forEach(it => { if (it.category === key) it.category = ''; });
+            saveCategories(); saveInventory();
+            populateCategorySelects(); populateCategoryManager();
+            closeDeleteModal();
+            renderItems(); updateStats();
+            
+            console.log('✅ [DELETE] Category deleted successfully');
+            return;
+        }
+        if (ctx.type === 'location') {
+            const name = ctx.payload.name;
+            console.log('🗑️ [DELETE] Deleting location:', name);
+            
+            locations = locations.filter(l => l.name !== name);
+            // clear location references in items
+            inventory.forEach(it => { if (it.locationParent === name) { it.locationParent = ''; it.locationChild = ''; } });
+            saveLocations(); saveInventory();
+            populateLocationSelects(); populateLocationFilters(); populateLocationManager();
+            closeDeleteModal(); renderItems(); updateStats();
+            
+            console.log('✅ [DELETE] Location deleted successfully');
+            return;
+        }
+        if (ctx.type === 'sublocation') {
+            const parent = ctx.payload.parent;
+            const name = ctx.payload.name;
+            console.log('🗑️ [DELETE] Deleting sublocation:', name, 'from parent:', parent);
+            
+            const loc = locations.find(l => l.name === parent);
+            if (loc) loc.subs = loc.subs.filter(s => s !== name);
+            // clear item references to this sublocation
+            inventory.forEach(it => { if (it.locationParent === parent && it.locationChild === name) it.locationChild = ''; });
+            saveLocations(); saveInventory();
+            populateLocationSelects(); populateLocationFilters(); populateLocationManager();
+            closeDeleteModal(); renderItems(); updateStats();
+            
+            console.log('✅ [DELETE] Sublocation deleted successfully');
+            return;
+        }
+    } catch (error) {
+        console.error('❌ [DELETE] Exception in confirmDelete:', error);
+        console.error('❌ [DELETE] Stack:', error.stack);
+        alert('Erro ao eliminar: ' + error.message);
         closeDeleteModal();
-        renderItems();
-        updateStats();
-        return;
-    }
-    if (ctx.type === 'category') {
-        const key = ctx.payload.key;
-        // remove category and clear from items
-        categories = categories.filter(c => c.key !== key);
-        inventory.forEach(it => { if (it.category === key) it.category = ''; });
-        saveCategories(); saveInventory();
-        populateCategorySelects(); populateCategoryManager();
-        closeDeleteModal();
-        renderItems(); updateStats();
-        return;
-    }
-    if (ctx.type === 'location') {
-        const name = ctx.payload.name;
-        locations = locations.filter(l => l.name !== name);
-        // clear location references in items
-        inventory.forEach(it => { if (it.locationParent === name) { it.locationParent = ''; it.locationChild = ''; } });
-        saveLocations(); saveInventory();
-        populateLocationSelects(); populateLocationFilters(); populateLocationManager();
-        closeDeleteModal(); renderItems(); updateStats();
-        return;
-    }
-    if (ctx.type === 'sublocation') {
-        const parent = ctx.payload.parent;
-        const name = ctx.payload.name;
-        const loc = locations.find(l => l.name === parent);
-        if (loc) loc.subs = loc.subs.filter(s => s !== name);
-        // clear item references to this sublocation
-        inventory.forEach(it => { if (it.locationParent === parent && it.locationChild === name) it.locationChild = ''; });
-        saveLocations(); saveInventory();
-        populateLocationSelects(); populateLocationFilters(); populateLocationManager();
-        closeDeleteModal(); renderItems(); updateStats();
-        return;
     }
 }
 
@@ -1024,12 +1097,21 @@ function showAddItemModal() {
 }
 
 function showEditItemModal(id) {
-    // Suppress cloud sync until modal is closed
-    window.modalSyncSuppressed = true;
-    const item = inventory.find(i => String(i.id) === String(id));
-    if (!item) return;
-    
-    currentEditId = id;
+    try {
+        console.log('🔵 [EDIT] showEditItemModal called with id:', id, 'type:', typeof id);
+        
+        // Suppress cloud sync until modal is closed
+        window.modalSyncSuppressed = true;
+        console.log('🔵 [EDIT] Cloud sync suppressed');
+        
+        const item = inventory.find(i => String(i.id) === String(id));
+        if (!item) {
+            console.error('❌ [EDIT] Item not found for id:', id);
+            return;
+        }
+        console.log('✅ [EDIT] Item found:', item.name, 'id:', item.id);
+        
+        currentEditId = id;
     document.getElementById('modalTitle').textContent = 'Editar Item';
     document.getElementById('itemName').value = item.name;
     document.getElementById('itemCategory').value = item.category;
@@ -1063,7 +1145,14 @@ function showEditItemModal(id) {
     if (parentSel) parentSel.value = parentVal || '';
     if (childSel) childSel.value = childVal || '';
     document.getElementById('itemNotes').value = item.notes || '';
+    
+    console.log('🔵 [EDIT] Opening modal for editing');
     openModal(document.getElementById('itemModal'));
+    } catch (error) {
+        console.error('❌ [EDIT] Exception in showEditItemModal:', error);
+        console.error('❌ [EDIT] Stack:', error.stack);
+        alert('Erro ao abrir modal de edição: ' + error.message);
+    }
 }
 
 function closeModal() {
@@ -1073,37 +1162,61 @@ function closeModal() {
 
 // Funções CRUD
 function saveItem(event) {
-    event.preventDefault();
-    
-    const item = {
-        id: currentEditId || Date.now(),
-        name: document.getElementById('itemName').value.trim(),
-        category: document.getElementById('itemCategory').value,
-        quantity: parseInt(document.getElementById('itemQuantity').value),
-        minStock: parseInt(document.getElementById('itemMinStock').value),
-        locationParent: document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '',
-        locationChild: document.getElementById('itemLocationChild') ? document.getElementById('itemLocationChild').value : '',
-        notes: document.getElementById('itemNotes').value.trim(),
-        createdAt: currentEditId ? (inventory.find(i => String(i.id) === String(currentEditId)) || {}).createdAt : new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
-    
-    if (currentEditId) {
-        // Editar item existente
-        const index = inventory.findIndex(i => String(i.id) === String(currentEditId));
-        if (index !== -1) inventory[index] = item;
-    } else {
-        // Adicionar novo item
-        inventory.push(item);
+    try {
+        console.log('💾 [SAVE] saveItem called, currentEditId:', currentEditId);
+        event.preventDefault();
+        
+        const item = {
+            id: currentEditId || Date.now(),
+            name: document.getElementById('itemName').value.trim(),
+            category: document.getElementById('itemCategory').value,
+            quantity: parseInt(document.getElementById('itemQuantity').value),
+            minStock: parseInt(document.getElementById('itemMinStock').value),
+            locationParent: document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '',
+            locationChild: document.getElementById('itemLocationChild') ? document.getElementById('itemLocationChild').value : '',
+            notes: document.getElementById('itemNotes').value.trim(),
+            createdAt: currentEditId ? (inventory.find(i => String(i.id) === String(currentEditId)) || {}).createdAt : new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        
+        console.log('💾 [SAVE] Item data:', { id: item.id, name: item.name, quantity: item.quantity });
+        
+        if (currentEditId) {
+            // Editar item existente
+            const index = inventory.findIndex(i => String(i.id) === String(currentEditId));
+            if (index !== -1) {
+                console.log('💾 [SAVE] Updating existing item at index:', index);
+                inventory[index] = item;
+            } else {
+                console.error('❌ [SAVE] Item index not found for id:', currentEditId);
+            }
+        } else {
+            // Adicionar novo item
+            console.log('💾 [SAVE] Adding new item');
+            inventory.push(item);
+        }
+        
+        console.log('💾 [SAVE] Calling saveInventory()');
+        saveInventory();
+        
+        console.log('💾 [SAVE] Closing modal');
+        closeModal();
+        
+        console.log('💾 [SAVE] Rendering items');
+        renderItems();
+        updateStats();
+        
+        // Ensure we request a cloud sync shortly after saving an item so the DB
+        // is updated even when modal suppression logic is in use.
+        console.log('💾 [SAVE] Requesting cloud sync');
+        try { requestCloudSync(300); } catch (e) { console.warn('⚠️ [SAVE] requestCloudSync not available:', e); }
+        
+        console.log('✅ [SAVE] Item saved successfully');
+    } catch (error) {
+        console.error('❌ [SAVE] Exception in saveItem:', error);
+        console.error('❌ [SAVE] Stack:', error.stack);
+        alert('Erro ao guardar item: ' + error.message);
     }
-    
-    saveInventory();
-    closeModal();
-    renderItems();
-    updateStats();
-    // Ensure we request a cloud sync shortly after saving an item so the DB
-    // is updated even when modal suppression logic is in use.
-    try { requestCloudSync(300); } catch (e) { /* ignore if helper not present */ }
 }
 
 function deleteItem(id) {
@@ -1112,15 +1225,34 @@ function deleteItem(id) {
 }
 
 function adjustStock(id, delta) {
-    const item = inventory.find(i => String(i.id) === String(id));
-    if (!item) return;
-    
-    item.quantity = Math.max(0, item.quantity + delta);
-    item.updatedAt = new Date().toISOString();
-    
-    saveInventory();
-    renderItems();
-    updateStats();
+    try {
+        console.log('📊 [STOCK] adjustStock called with id:', id, 'delta:', delta);
+        
+        const item = inventory.find(i => String(i.id) === String(id));
+        if (!item) {
+            console.error('❌ [STOCK] Item not found for id:', id);
+            return;
+        }
+        
+        const oldQuantity = item.quantity;
+        item.quantity = Math.max(0, item.quantity + delta);
+        item.updatedAt = new Date().toISOString();
+        
+        console.log(`📊 [STOCK] Stock adjusted for "${item.name}": ${oldQuantity} → ${item.quantity}`);
+        
+        console.log('📊 [STOCK] Calling saveInventory()');
+        saveInventory();
+        
+        console.log('📊 [STOCK] Rendering items');
+        renderItems();
+        updateStats();
+        
+        console.log('✅ [STOCK] Stock adjustment completed');
+    } catch (error) {
+        console.error('❌ [STOCK] Exception in adjustStock:', error);
+        console.error('❌ [STOCK] Stack:', error.stack);
+        alert('Erro ao ajustar stock: ' + error.message);
+    }
 }
 
 // Funções de Renderização
