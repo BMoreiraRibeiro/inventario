@@ -9,6 +9,16 @@ let modalZIndex = 1000;
 
 function openModal(el) {
     if (!el) return;
+    // Ensure modal doesn't overlap the app header: set top padding equal to header height
+    const headerEl = document.querySelector('header');
+    if (headerEl) {
+        try {
+            const headerH = headerEl.getBoundingClientRect().height || 0;
+            el.style.paddingTop = (headerH + 12) + 'px';
+        } catch (e) {
+            // ignore
+        }
+    }
     el.classList.add('active');
     modalZIndex += 1;
     el.style.zIndex = modalZIndex;
@@ -19,6 +29,8 @@ function closeModalEl(el) {
     el.classList.remove('active');
     // remove inline zIndex so other modals can reuse stacking
     el.style.zIndex = '';
+    // clear any paddingTop set when opening to restore default
+    el.style.paddingTop = '';
 }
 
 // Helper: slugify label to key
