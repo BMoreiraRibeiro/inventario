@@ -61,6 +61,20 @@ function closeModalEl(el) {
     }
 }
 
+// Debounced request to trigger a cloud sync. Use this when you want to ensure
+// a sync runs shortly after a user action (e.g. after saving a new item) but
+// avoid flooding multiple quick calls. This will call the global `syncToCloud`
+// if available.
+window._requestedSyncTimeout = null;
+function requestCloudSync(delay = 400) {
+    try { clearTimeout(window._requestedSyncTimeout); } catch (e) {}
+    window._requestedSyncTimeout = setTimeout(() => {
+        try {
+            if (typeof syncToCloud !== 'undefined' && !isSyncing) syncToCloud();
+        } catch (e) { console.warn('requestCloudSync error', e); }
+    }, delay);
+}
+
 // Helper: slugify label to key
 function slugify(s) {
     return s.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_\-]/g, '');
@@ -820,8 +834,8 @@ function showDeleteModal(target) {
     let text = 'Tem certeza que deseja eliminar este item?';
     if (typeof target === 'number' || typeof target === 'string') {
         // legacy: item id
-        const id = Number(target);
-        const item = inventory.find(i => i.id === id);
+        const id = target;
+        const item = inventory.find(i => String(i.id) === String(id));
         if (!item) return;
         pendingDeleteContext = { type: 'item', payload: { id } };
         text = `Tem certeza que deseja eliminar "${item.name}"?`;
@@ -862,7 +876,7 @@ function confirmDelete() {
     pendingDeleteContext = null;
     if (ctx.type === 'item') {
         const id = ctx.payload.id;
-        inventory = inventory.filter(i => i.id !== id);
+        inventory = inventory.filter(i => String(i.id) !== String(id));
         saveInventory();
         closeDeleteModal();
         renderItems();
@@ -970,7 +984,7 @@ function onLocationFilterChange() {
 // Funções de LocalStorage
 function loadInventory() {
     const saved = localStorage.getItem('inventory');
-    if (saved) {
+        if (saved && saved !== '[]') {
         inventory = JSON.parse(saved);
         // Normalizar campos de localização (compatibilidade com versões antigas)
         inventory = inventory.map(item => {
@@ -1188,7 +1202,7 @@ function showAddItemModal() {
 function showEditItemModal(id) {
     // Suppress cloud sync until modal is closed
     window.modalSyncSuppressed = true;
-    const item = inventory.find(i => i.id === id);
+    const item = inventory.find(i => String(i.id) === String(id));
     if (!item) return;
     
     currentEditId = id;
@@ -1246,14 +1260,14 @@ function saveItem(event) {
         locationParent: document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '',
         locationChild: document.getElementById('itemLocationChild') ? document.getElementById('itemLocationChild').value : '',
         notes: document.getElementById('itemNotes').value.trim(),
-        createdAt: currentEditId ? inventory.find(i => i.id === currentEditId).createdAt : new Date().toISOString(),
+        createdAt: currentEditId ? (inventory.find(i => String(i.id) === String(currentEditId)) || {}).createdAt : new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
     
     if (currentEditId) {
         // Editar item existente
-        const index = inventory.findIndex(i => i.id === currentEditId);
-        inventory[index] = item;
+        const index = inventory.findIndex(i => String(i.id) === String(currentEditId));
+        if (index !== -1) inventory[index] = item;
     } else {
         // Adicionar novo item
         inventory.push(item);
@@ -1263,6 +1277,9 @@ function saveItem(event) {
     closeModal();
     renderItems();
     updateStats();
+    // Ensure we request a cloud sync shortly after saving an item so the DB
+    // is updated even when modal suppression logic is in use.
+    try { requestCloudSync(300); } catch (e) { /* ignore if helper not present */ }
 }
 
 function deleteItem(id) {
@@ -1271,7 +1288,7 @@ function deleteItem(id) {
 }
 
 function adjustStock(id, delta) {
-    const item = inventory.find(i => i.id === id);
+    const item = inventory.find(i => String(i.id) === String(id));
     if (!item) return;
     
     item.quantity = Math.max(0, item.quantity + delta);
@@ -1355,8 +1372,8 @@ function renderItems() {
                     ${displayLocation ? `\n                        <div class="item-location">📍 ${displayLocation}</div>\n                    ` : ''}
                     ${item.notes ? `\n                        <div class="item-notes">💬 ${item.notes}</div>\n                    ` : ''}
                 </div>
-                <div class="stock-controls"><button class="stock-btn minus" onclick="adjustStock(${item.id}, -1)" ${item.quantity === 0 ? 'disabled' : ''}>−</button><button class="stock-btn plus" onclick="adjustStock(${item.id}, 1)">+</button></div>
-                <div class="item-actions"><button class="btn-edit" onclick="showEditItemModal(${item.id})">✏️ Editar</button><button class="btn-delete" onclick="showDeleteModal(${item.id})">🗑️ Eliminar</button></div>
+                <div class="stock-controls"><button class="stock-btn minus" onclick="adjustStock(${JSON.stringify(item.id)}, -1)" ${item.quantity === 0 ? 'disabled' : ''}>−</button><button class="stock-btn plus" onclick="adjustStock(${JSON.stringify(item.id)}, 1)">+</button></div>
+                <div class="item-actions"><button class="btn-edit" onclick="showEditItemModal(${JSON.stringify(item.id)})">✏️ Editar</button><button class="btn-delete" onclick="showDeleteModal(${JSON.stringify(item.id)})">🗑️ Eliminar</button></div>
             </div>
         `;
     }
