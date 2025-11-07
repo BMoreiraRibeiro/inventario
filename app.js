@@ -464,56 +464,25 @@ function populateCategorySelects(selected) {
     empty.textContent = 'Selecione...';
     itemSel.appendChild(empty);
     categories.forEach(cat => {
+        // top-level category option
         const o = document.createElement('option');
         o.value = cat.key;
         o.textContent = `${cat.icon || ''} ${cat.label}`.trim();
         itemSel.appendChild(o);
+        // subcategories inline in the same dropdown (value = "category||sub")
+        if (Array.isArray(cat.subs) && cat.subs.length > 0) {
+            cat.subs.forEach(sub => {
+                const s = document.createElement('option');
+                s.value = `${cat.key}||${sub}`;
+                s.textContent = `  └ ${sub}`;
+                itemSel.appendChild(s);
+            });
+        }
     });
     if (selected && selected !== 'filter') itemSel.value = selected;
-
-    // Prepare itemSubcategory select if present
-    const itemSubSel = document.getElementById('itemSubcategory');
-    if (itemSubSel) {
-        itemSubSel.innerHTML = '';
-        const opt = document.createElement('option'); opt.value = ''; opt.textContent = '— Nenhuma —'; itemSubSel.appendChild(opt);
-        // if a category is preselected, populate its subs
-        const selCat = categories.find(c => c.key === (selected && selected !== 'filter' ? selected : itemSel.value));
-        if (selCat && Array.isArray(selCat.subs) && selCat.subs.length > 0) {
-            selCat.subs.forEach(s => {
-                const o = document.createElement('option'); o.value = s; o.textContent = s; itemSubSel.appendChild(o);
-            });
-            itemSubSel.style.display = 'inline-block';
-        } else {
-            itemSubSel.style.display = 'none';
-        }
-    }
 }
 
-// When category changes in item modal, populate subcategories select
-function addCategoryChangeHandler() {
-    document.addEventListener('change', function(e) {
-        if (!e.target) return;
-        if (e.target.id === 'itemCategory') {
-            const sel = e.target.value;
-            const subSel = document.getElementById('itemSubcategory');
-            if (!subSel) return;
-            const cat = categories.find(c => c.key === sel);
-            if (!cat || !Array.isArray(cat.subs) || cat.subs.length === 0) {
-                subSel.style.display = 'none';
-                subSel.innerHTML = '';
-                return;
-            }
-            subSel.style.display = 'inline-block';
-            subSel.innerHTML = '';
-            const empty = document.createElement('option'); empty.value = ''; empty.textContent = '— Nenhuma —'; subSel.appendChild(empty);
-            cat.subs.forEach(s => {
-                const o = document.createElement('option'); o.value = s; o.textContent = s; subSel.appendChild(o);
-            });
-        }
-    });
-}
-// register handler once
-addCategoryChangeHandler();
+// No separate change handler needed since subcategories are in the same select
 
 // Modal de criar categoria
 function showAddCategoryModal() {
@@ -891,8 +860,14 @@ function saveItem(event) {
     const name = document.getElementById('itemName').value.trim();
     const quantity = parseInt(document.getElementById('itemQuantity').value || '0', 10);
     const minStock = parseInt(document.getElementById('itemMinStock').value || '0', 10);
-    const category = document.getElementById('itemCategory').value;
-    const subcategory = document.getElementById('itemSubcategory') ? document.getElementById('itemSubcategory').value : '';
+    const selVal = document.getElementById('itemCategory').value || '';
+    let category = selVal;
+    let subcategory = '';
+    if (selVal.includes('||')) {
+        const parts = selVal.split('||');
+        category = parts[0];
+        subcategory = parts.slice(1).join('||');
+    }
     const locationParent = document.getElementById('itemLocationParent').value || '';
     const locationChild = document.getElementById('itemLocationChild').value || '';
     const notes = document.getElementById('itemNotes').value.trim();
@@ -1218,14 +1193,11 @@ function editItem(id) {
     document.getElementById('itemName').value = item.name || '';
     document.getElementById('itemQuantity').value = item.quantity ?? 0;
     document.getElementById('itemMinStock').value = item.minStock ?? 0;
-    populateCategorySelects(item.category || '');
+    // Select combined value (category||subcategory) if subcategory exists
+    const selectedCatVal = item.subcategory ? (item.category + '||' + item.subcategory) : (item.category || '');
+    populateCategorySelects(selectedCatVal);
     populateLocationSelects(item.locationParent || '', item.locationChild || '');
     document.getElementById('itemNotes').value = item.notes || '';
-    // set subcategory if present
-    const subSel = document.getElementById('itemSubcategory');
-    if (subSel) {
-        try { subSel.value = item.subcategory || ''; } catch(_) { /* ignore */ }
-    }
 
     openModal(modal);
 }
