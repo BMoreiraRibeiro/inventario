@@ -172,51 +172,62 @@ async function syncInventoryToCloud() {
             }
         }
         
-        // Upsert local items
-        let insertedCount = 0;
-        let updatedCount = 0;
-        
-        for (const item of localItems) {
-            const cloudItem = cloudItems?.find(ci => String(ci.id) === String(item.id));
-            
-            const itemData = {
-                id: String(item.id),
-                name: item.name,
-                category_key: item.category || '',
-                quantity: item.quantity || 0,
-                min_stock: item.minStock || 0,
-                location_parent: item.locationParent || '',
-                location_child: item.locationChild || '',
-                notes: item.notes || ''
-            };
-            
-            if (cloudItem) {
-                // Update
-                const { error: updateError } = await supabase
-                    .from('inventory_items')
-                    .update(itemData)
-                    .eq('id', String(item.id));
-                
-                if (updateError) {
-                    console.error(`❌ Error updating item ${item.name}:`, updateError);
+        // Prepare items: ensure IDs are UUIDs (server expects UUID primary keys)
+        const needsIdFix = [];
+        for (let i = 0; i < localItems.length; i++) {
+            const it = localItems[i];
+            // Treat numeric or timestamp ids as local-only and replace with UUID
+            const looksLikeUUID = typeof it.id === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(it.id);
+            if (!looksLikeUUID) {
+                // generate UUID if available
+                if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                    const newId = crypto.randomUUID();
+                    needsIdFix.push({ oldId: it.id, newId, index: i });
+                    it.id = newId;
                 } else {
-                    updatedCount++;
-                }
-            } else {
-                // Insert
-                const { error: insertError } = await supabase
-                    .from('inventory_items')
-                    .insert([itemData]);
-                
-                if (insertError) {
-                    console.error(`❌ Error inserting item ${item.name}:`, insertError);
-                } else {
-                    insertedCount++;
+                    // fallback: prefix timestamp to reduce collision risk
+                    const newId = 'local-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+                    needsIdFix.push({ oldId: it.id, newId, index: i });
+                    it.id = newId;
                 }
             }
         }
-        
-        console.log(`✅ Inventory synced - Inserted: ${insertedCount}, Updated: ${updatedCount}`);
+
+        // Persist any local id fixes to localStorage without triggering another cloud sync
+        if (needsIdFix.length > 0) {
+            try {
+                localStorage.setItem('inventory', JSON.stringify(localItems));
+                // update in-memory too
+                inventory = localItems;
+                console.log(`🔁 Converted ${needsIdFix.length} local ids to UUIDs for cloud compatibility`);
+            } catch (err) {
+                console.warn('⚠️ Could not persist local id fixes:', err);
+            }
+        }
+
+        // Build payload for upsert
+        const payload = localItems.map(item => ({
+            id: String(item.id),
+            name: item.name,
+            category_key: item.category || '',
+            quantity: item.quantity || 0,
+            min_stock: item.minStock || 0,
+            location_parent: item.locationParent || '',
+            location_child: item.locationChild || '',
+            notes: item.notes || ''
+        }));
+
+        // Use upsert to insert or update in a single call (on conflict by id)
+        const { data: upserted, error: upsertError } = await supabase
+            .from('inventory_items')
+            .upsert(payload, { onConflict: 'id' })
+            .select('*');
+
+        if (upsertError) {
+            console.error('❌ Error upserting inventory items:', upsertError);
+        } else {
+            console.log(`✅ Inventory upserted, server returned ${upserted?.length || 0} rows`);
+        }
     } catch (error) {
         console.error('❌ Sync inventory error:', error);
         throw error;
@@ -351,3 +362,53 @@ function setupAutoSync() {
         }
     }, 30000);
 }
+
+// Quick health check to verify connectivity and permissions
+async function testConnection() {
+    if (!supabase) {
+        console.warn('⚠️ Supabase not initialized');
+        return false;
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('categories')
+            .select('key')
+            .limit(1);
+
+        if (error) {
+            console.error('❌ Supabase test query failed:', error);
+            return false;
+        }
+
+        console.log('✅ Supabase test query ok:', data);
+        return true;
+    } catch (err) {
+        console.error('❌ Supabase testConnection error:', err);
+        return false;
+    }
+}
+
+// Try to initialize supabase client automatically when script loads
+try {
+    const ok = initSupabase();
+    if (ok) {
+        console.log('ℹ️ Supabase client initialized on load');
+    } else {
+        console.warn('⚠️ Supabase client not initialized on load (check CONFIG and supabase-js script)');
+    }
+} catch (e) {
+    console.error('❌ Error during automatic Supabase init:', e);
+}
+
+// Expose functions for debugging from the console
+window.supabaseSync = window.supabaseSync || {};
+Object.assign(window.supabaseSync, {
+    initSupabase,
+    testConnection,
+    syncToCloud,
+    loadFromCloud,
+    syncInventoryToCloud,
+    syncCategoriesToCloud,
+    syncLocationsToCloud,
+});
