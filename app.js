@@ -462,7 +462,7 @@ function populateCategorySelects(selected) {
             cat.subs.forEach(sub => {
                 const s = document.createElement('option');
                 s.value = `${cat.key}||${sub}`;
-                s.textContent = `  └ ${sub}`; // keep indentation but only show sub name
+                s.textContent = `\u00A0\u00A0\u00A0└ ${sub}`; // keep indentation but only show sub name
                 filter.appendChild(s);
             });
         }
