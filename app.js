@@ -956,30 +956,13 @@ function renderItems() {
         const header = document.createElement('div');
         header.className = 'item-header';
 
-        const left = document.createElement('div');
-        left.innerHTML = `
+        const headerContent = document.createElement('div');
+        headerContent.innerHTML = `
             <div class="item-title">${item.name}</div>
             <div class="item-category">${(meta.icon||'')} ${meta.label}</div>
         `;
 
-        const right = document.createElement('div');
-        right.style.display = 'flex';
-        right.style.gap = '6px';
-
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn-secondary';
-        editBtn.textContent = 'Editar';
-        editBtn.onclick = () => editItem(item.id);
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'btn-delete';
-        delBtn.textContent = 'Eliminar';
-        delBtn.onclick = () => showDeleteModal({ type: 'item', id: item.id });
-
-        right.appendChild(editBtn);
-        right.appendChild(delBtn);
-        header.appendChild(left);
-        header.appendChild(right);
+        header.appendChild(headerContent);
 
         const details = document.createElement('div');
         details.className = 'item-details';
@@ -991,25 +974,50 @@ function renderItems() {
             ${item.notes ? `<div class="item-notes">${item.notes}</div>` : ''}
         `;
 
-        const actions = document.createElement('div');
-        actions.className = 'item-actions';
+        // Stock controls (− and +)
+        const stockControls = document.createElement('div');
+        stockControls.className = 'stock-controls';
 
         const decBtn = document.createElement('button');
-        decBtn.className = 'btn-secondary';
+        decBtn.className = 'stock-btn minus';
         decBtn.textContent = '−';
         decBtn.onclick = () => decrementQuantity(item.id);
+        if (item.quantity === 0) decBtn.disabled = true;
+
+        const qtyDisplay = document.createElement('span');
+        qtyDisplay.className = 'stock-qty';
+        qtyDisplay.textContent = item.quantity;
 
         const incBtn = document.createElement('button');
-        incBtn.className = 'btn-primary';
+        incBtn.className = 'stock-btn plus';
         incBtn.textContent = '+';
         incBtn.onclick = () => incrementQuantity(item.id);
 
-        actions.appendChild(decBtn);
-        actions.appendChild(incBtn);
+        stockControls.appendChild(decBtn);
+        stockControls.appendChild(qtyDisplay);
+        stockControls.appendChild(incBtn);
+
+        // Item actions (Edit and Delete)
+        const itemActions = document.createElement('div');
+        itemActions.className = 'item-actions';
+
+        const editActionBtn = document.createElement('button');
+        editActionBtn.className = 'btn-edit';
+        editActionBtn.textContent = '✏️ Editar';
+        editActionBtn.onclick = () => editItem(item.id);
+
+        const delActionBtn = document.createElement('button');
+        delActionBtn.className = 'btn-delete';
+        delActionBtn.textContent = '🗑️ Eliminar';
+        delActionBtn.onclick = () => showDeleteModal({ type: 'item', id: item.id });
+
+        itemActions.appendChild(editActionBtn);
+        itemActions.appendChild(delActionBtn);
 
         card.appendChild(header);
         card.appendChild(details);
-        card.appendChild(actions);
+        card.appendChild(stockControls);
+        card.appendChild(itemActions);
 
         // badges de stock
         if ((item.minStock || 0) > 0 && item.quantity <= item.minStock) {
