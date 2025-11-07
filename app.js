@@ -906,11 +906,12 @@ function saveItem(event) {
     if (currentEditId) {
         const idx = inventory.findIndex(i => i.id === currentEditId);
         if (idx !== -1) {
-            inventory[idx] = { ...inventory[idx], name, quantity, minStock, category, subcategory, locationParent, locationChild, notes };
+            inventory[idx] = { ...inventory[idx], name, quantity, minStock, category, subcategory, locationParent, locationChild, notes, updatedAt: Date.now() };
         }
     } else {
         const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'local-' + Date.now() + '-' + Math.floor(Math.random()*100000);
-        inventory.push({ id, name, quantity, minStock, category, subcategory, locationParent, locationChild, notes, createdAt: Date.now() });
+        const now = Date.now();
+        inventory.push({ id, name, quantity, minStock, category, subcategory, locationParent, locationChild, notes, createdAt: now, updatedAt: now });
     }
 
     saveInventory();
@@ -1299,6 +1300,7 @@ async function saveStockChange() {
 
         const oldQuantity = item.quantity;
         item.quantity = newQuantity;
+    item.updatedAt = Date.now();
 
         console.log(`📊 [STOCK] Quantity changed: ${oldQuantity} → ${newQuantity}`);
 

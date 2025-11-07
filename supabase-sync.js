@@ -320,6 +320,72 @@ async function syncToCloud() {
         // Show blocking UI while doing full sync
         try { document.getElementById('blockingSyncOverlay').style.display = 'flex'; } catch(e) {}
         
+        // Pull from cloud first and merge with local
+        try {
+            console.log('🔁 Pulling latest items from cloud to merge...');
+            const { data: cloudItems, error: fetchErr } = await supabase.from('inventory_items').select('*');
+            if (fetchErr) {
+                console.error('❌ Error fetching cloud items for merge:', fetchErr);
+            } else if (cloudItems) {
+                // Merge cloud items into local inventory by updated_at timestamp
+                const localItems = window.inventory || [];
+                const localMap = new Map(localItems.map(i => [String(i.id), i]));
+                const merged = [...localItems];
+
+                for (const c of cloudItems) {
+                    const cid = String(c.id);
+                    const cloudUpdated = c.updated_at ? Date.parse(c.updated_at) : 0;
+                    const local = localMap.get(cid);
+                    if (local) {
+                        const localUpdated = local.updatedAt || 0;
+                        if (cloudUpdated > localUpdated) {
+                            // Replace local with cloud
+                            const newLocal = {
+                                id: c.id,
+                                name: c.name,
+                                category: c.category_key,
+                                subcategory: c.subcategory || '',
+                                quantity: c.quantity,
+                                minStock: c.min_stock,
+                                locationParent: c.location_parent || '',
+                                locationChild: c.location_child || '',
+                                notes: c.notes || '',
+                                createdAt: c.created_at,
+                                updatedAt: cloudUpdated
+                            };
+                            const idx = merged.findIndex(x => String(x.id) === cid);
+                            if (idx !== -1) merged[idx] = newLocal;
+                            else merged.push(newLocal);
+                        }
+                    } else {
+                        // cloud-only, add to local
+                        const newLocal = {
+                            id: c.id,
+                            name: c.name,
+                            category: c.category_key,
+                            subcategory: c.subcategory || '',
+                            quantity: c.quantity,
+                            minStock: c.min_stock,
+                            locationParent: c.location_parent || '',
+                            locationChild: c.location_child || '',
+                            notes: c.notes || '',
+                            createdAt: c.created_at,
+                            updatedAt: c.updated_at ? Date.parse(c.updated_at) : 0
+                        };
+                        merged.push(newLocal);
+                    }
+                }
+                // persist merged result
+                window.inventory = merged;
+                try { saveInventory(); } catch(e) { console.warn('Could not persist merged inventory locally', e); }
+                try { renderItems(); updateStats(); } catch(e) {}
+                console.log('🔁 Merge complete: local inventory updated with cloud changes');
+            }
+        } catch (err) {
+            console.error('❌ Error during pull+merge step:', err);
+        }
+
+        // Now push local changes to cloud
         await syncCategoriesToCloud();
         await syncLocationsToCloud();
         await syncInventoryToCloud();
