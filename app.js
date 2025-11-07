@@ -454,8 +454,8 @@ function populateCategorySelects(selected) {
         const o = document.createElement('option');
         o.value = cat.key;
         const headerText = `${cat.icon || ''} ${cat.label}`.trim();
-        // decorate the category option so it looks like a header but remains clickable
-        o.textContent = `─ ${headerText} ─`;
+    // show category label plainly (no decorative dashes)
+    o.textContent = headerText;
         filter.appendChild(o);
 
         if (Array.isArray(cat.subs) && cat.subs.length > 0) {
@@ -483,7 +483,7 @@ function populateCategorySelects(selected) {
         const o = document.createElement('option');
         o.value = cat.key;
         const headerText = `${cat.icon || ''} ${cat.label}`.trim();
-        o.textContent = `─ ${headerText} ─`;
+    o.textContent = headerText;
         itemSel.appendChild(o);
 
         if (Array.isArray(cat.subs) && cat.subs.length > 0) {
