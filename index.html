@@ -155,9 +155,8 @@
                     <div style="display:flex; gap:8px; align-items:center;">
                         <!-- dynamic select will be populated on load -->
                         <select id="itemCategory" style="flex:1;" required></select>
-                        <select id="itemSubcategory" style="flex:1; display:none; margin-left:8px;"></select>
                         <button type="button" class="btn-secondary" onclick="showAddCategoryModal()">+ Categoria</button>
-                        <button type="button" class="btn-secondary" onclick="addSubcategoryToSelectedCategory()" title="Adicionar subcategoria">+ Sub</button>
+                        <button type="button" class="btn-secondary" onclick="showInlineAddSub(this)" title="Adicionar subcategoria">+ Sub</button>
                     </div>
                     <p class="modal-error" id="itemCategoryError" style="color:var(--danger-color); margin-top:6px; display:none;"></p>
                 </div>
