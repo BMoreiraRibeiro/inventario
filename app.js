@@ -299,6 +299,8 @@ function submitLocationForm(event) {
     saveLocations();
     populateLocationSelects(name, '');
     populateLocationFilters(name, '');
+    // Update location manager UI immediately if it's open
+    if (typeof populateLocationManager !== 'undefined') populateLocationManager();
     closeLocationModal();
 }
 
