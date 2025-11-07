@@ -5,6 +5,26 @@ let isLoggedIn = false;
 let locations = [];
 let categories = [];
 let pendingDeleteId = null;
+let modalZIndex = 1000;
+
+function openModal(el) {
+    if (!el) return;
+    el.classList.add('active');
+    modalZIndex += 1;
+    el.style.zIndex = modalZIndex;
+}
+
+function closeModalEl(el) {
+    if (!el) return;
+    el.classList.remove('active');
+    // remove inline zIndex so other modals can reuse stacking
+    el.style.zIndex = '';
+}
+
+// Helper: slugify label to key
+function slugify(s) {
+    return s.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_\-]/g, '');
+}
 
 // Inicialização
 // Inicialização segura: se o DOM já estiver carregado, executa imediatamente.
@@ -244,21 +264,23 @@ function showAddLocationModal() {
     const input = document.getElementById('locationName');
     if (!modal || !input) return;
     input.value = '';
-    modal.classList.add('active');
+    openModal(modal);
     setTimeout(() => input.focus(), 50);
 }
 
 function closeLocationModal() {
     const modal = document.getElementById('locationModal');
     if (!modal) return;
-    modal.classList.remove('active');
+    closeModalEl(modal);
 }
 
 function submitLocationForm(event) {
     event.preventDefault();
     const name = document.getElementById('locationName').value.trim();
+    const errEl = document.getElementById('locationError');
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     if (!name) return;
-    if (locations.find(l => l.name === name)) { alert('Local já existe'); return; }
+    if (locations.find(l => l.name === name)) { if (errEl) { errEl.textContent = 'Local já existe'; errEl.style.display = 'block'; } return; }
     locations.push({ name, subs: [] });
     saveLocations();
     populateLocationSelects(name, '');
@@ -266,10 +288,10 @@ function submitLocationForm(event) {
     closeLocationModal();
 }
 
-function showAddSublocationModal() {
+function showAddSublocationModal(parentName) {
     const modal = document.getElementById('sublocationModal');
     const parentSel = document.getElementById('sublocationParent');
-    const currentParent = document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '';
+    const currentParent = parentName || (document.getElementById('itemLocationParent') ? document.getElementById('itemLocationParent').value : '');
     if (!modal || !parentSel) return;
     // populate parent select
     parentSel.innerHTML = '';
@@ -281,25 +303,27 @@ function showAddSublocationModal() {
     });
     if (currentParent) parentSel.value = currentParent;
     document.getElementById('sublocationName').value = '';
-    modal.classList.add('active');
+    openModal(modal);
     setTimeout(() => document.getElementById('sublocationName').focus(), 50);
 }
 
 function closeSublocationModal() {
     const modal = document.getElementById('sublocationModal');
     if (!modal) return;
-    modal.classList.remove('active');
+    closeModalEl(modal);
 }
 
 function submitSublocationForm(event) {
     event.preventDefault();
     const parentName = document.getElementById('sublocationParent').value;
     const subName = document.getElementById('sublocationName').value.trim();
-    if (!parentName) { alert('Selecione um Local pai'); return; }
+    const errEl = document.getElementById('sublocationError');
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    if (!parentName) { if (errEl) { errEl.textContent = 'Selecione um Local pai'; errEl.style.display = 'block'; } return; }
     if (!subName) return;
     const parent = locations.find(l => l.name === parentName);
     if (!parent) return;
-    if (parent.subs.includes(subName)) { alert('Sub-local já existe'); return; }
+    if (parent.subs.includes(subName)) { if (errEl) { errEl.textContent = 'Sub-local já existe'; errEl.style.display = 'block'; } return; }
     parent.subs.push(subName);
     saveLocations();
     populateLocationSelects(parentName, subName);
@@ -371,15 +395,42 @@ function populateLocationFilters(selectedParent, selectedChild) {
     };
 }
 
-// Categories
+// Categories model: array of objects { key, label, icon }
 function loadCategories() {
     const saved = localStorage.getItem('categories');
     if (saved) {
-        try { categories = JSON.parse(saved); } catch (e) { categories = []; }
+        try {
+            const parsed = JSON.parse(saved);
+            // support legacy array of strings
+            if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+                const map = defaultCategoryMap();
+                categories = parsed.map(k => ({ key: k, label: (map[k] && map[k].label) ? map[k].label : k, icon: (map[k] && map[k].icon) ? map[k].icon : '' }));
+            } else {
+                categories = parsed;
+            }
+        } catch (e) { categories = []; }
     } else {
-        categories = ['ferramentas','eletrico','eletronico','placas','ferragens','outros'];
+        categories = [
+            { key: 'ferramentas', label: 'Ferramentas', icon: '🔨' },
+            { key: 'eletrico', label: 'Material Elétrico', icon: '⚡' },
+            { key: 'eletronico', label: 'Componentes Eletrônicos', icon: '🔌' },
+            { key: 'placas', label: 'Placas e Arduinos', icon: '🖥️' },
+            { key: 'ferragens', label: 'Ferragens', icon: '🔩' },
+            { key: 'outros', label: 'Outros', icon: '📦' }
+        ];
         saveCategories();
     }
+}
+
+function defaultCategoryMap() {
+    return {
+        ferramentas: { label: 'Ferramentas', icon: '🔨' },
+        eletrico: { label: 'Material Elétrico', icon: '⚡' },
+        eletronico: { label: 'Componentes Eletrônicos', icon: '🔌' },
+        placas: { label: 'Placas e Arduinos', icon: '🖥️' },
+        ferragens: { label: 'Ferragens', icon: '🔩' },
+        outros: { label: 'Outros', icon: '📦' }
+    };
 }
 
 function saveCategories() {
@@ -391,7 +442,7 @@ function populateCategorySelects(selected) {
     const itemSel = document.getElementById('itemCategory');
     if (!filter || !itemSel) return;
 
-    // preserve 'all' option for filter
+    // preserve current filter
     const currentFilter = filter.value || 'all';
     filter.innerHTML = '';
     const optAll = document.createElement('option');
@@ -401,8 +452,8 @@ function populateCategorySelects(selected) {
 
     categories.forEach(cat => {
         const o = document.createElement('option');
-        o.value = cat;
-        o.textContent = cat;
+        o.value = cat.key;
+        o.textContent = `${cat.icon || ''} ${cat.label}`.trim();
         filter.appendChild(o);
     });
     filter.value = selected === 'filter' ? currentFilter : (filter.value || 'all');
@@ -415,8 +466,8 @@ function populateCategorySelects(selected) {
     itemSel.appendChild(empty);
     categories.forEach(cat => {
         const o = document.createElement('option');
-        o.value = cat;
-        o.textContent = cat;
+        o.value = cat.key;
+        o.textContent = `${cat.icon || ''} ${cat.label}`.trim();
         itemSel.appendChild(o);
     });
     if (selected && selected !== 'filter') itemSel.value = selected;
@@ -428,25 +479,270 @@ function showAddCategoryModal() {
     const input = document.getElementById('categoryName');
     if (!modal || !input) return;
     input.value = '';
-    modal.classList.add('active');
+    openModal(modal);
     setTimeout(() => input.focus(), 50);
 }
 
 function closeCategoryModal() {
     const modal = document.getElementById('categoryModal');
     if (!modal) return;
-    modal.classList.remove('active');
+    closeModalEl(modal);
 }
 
 function submitCategoryForm(event) {
     event.preventDefault();
     const name = document.getElementById('categoryName').value.trim();
+    const icon = document.getElementById('categoryIcon').value.trim();
+    const errEl = document.getElementById('categoryError');
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     if (!name) return;
-    if (categories.includes(name)) { alert('Categoria já existe'); return; }
-    categories.push(name);
+    const key = slugify(name);
+    if (categories.find(c => c.key === key || c.label.toLowerCase() === name.toLowerCase())) {
+        if (errEl) { errEl.textContent = 'Categoria já existe'; errEl.style.display = 'block'; }
+        return;
+    }
+    const newCat = { key, label: name, icon: icon || '' };
+    categories.push(newCat);
     saveCategories();
-    populateCategorySelects(name);
+    populateCategorySelects(newCat.key);
+    populateCategoryManager();
     closeCategoryModal();
+}
+
+// Category manager
+function showCategoryManager() {
+    populateCategoryManager();
+    const modal = document.getElementById('categoryManagerModal');
+    if (!modal) return;
+    openModal(modal);
+}
+
+function closeCategoryManager() {
+    const modal = document.getElementById('categoryManagerModal');
+    if (!modal) return;
+    closeModalEl(modal);
+}
+
+function populateCategoryManager() {
+    const list = document.getElementById('categoryManagerList');
+    if (!list) return;
+    list.innerHTML = '';
+    categories.forEach(cat => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        row.style.padding = '8px 0';
+        row.innerHTML = `<div><strong>${cat.icon || ''} ${cat.label}</strong> <span style="color:var(--text-secondary); font-size:12px; margin-left:8px;">(${cat.key})</span></div>`;
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '8px';
+        const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
+        const delBtn = document.createElement('button'); delBtn.className = 'btn-secondary'; delBtn.textContent = 'Eliminar';
+        editBtn.onclick = () => editCategoryInline(cat.key);
+        delBtn.onclick = () => {
+            if (!confirm('Eliminar categoria?')) return;
+            categories = categories.filter(c => c.key !== cat.key);
+            saveCategories();
+            populateCategorySelects();
+            populateCategoryManager();
+        };
+        actions.appendChild(editBtn); actions.appendChild(delBtn);
+        row.appendChild(actions);
+        list.appendChild(row);
+    });
+}
+
+function editCategoryInline(key) {
+    const cat = categories.find(c => c.key === key);
+    if (!cat) return;
+    const list = document.getElementById('categoryManagerList');
+    // replace content with editable form
+    list.innerHTML = '';
+    categories.forEach(c => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.alignItems = 'center';
+        row.style.padding = '8px 0';
+        if (c.key === key) {
+            const left = document.createElement('div');
+            left.innerHTML = `<input id="editLabel" value="${c.label}" style="padding:6px; margin-right:8px;"><input id="editIcon" value="${c.icon || ''}" style="padding:6px; width:60px;">`;
+            const actions = document.createElement('div');
+            actions.style.display = 'flex'; actions.style.gap = '8px';
+            const save = document.createElement('button'); save.className = 'btn-primary'; save.textContent = 'Salvar';
+            const cancel = document.createElement('button'); cancel.className = 'btn-secondary'; cancel.textContent = 'Cancelar';
+            save.onclick = () => {
+                const newLabel = document.getElementById('editLabel').value.trim();
+                const newIcon = document.getElementById('editIcon').value.trim();
+                const mgrErr = document.getElementById('categoryManagerError'); if (mgrErr) { mgrErr.style.display='none'; mgrErr.textContent=''; }
+                if (!newLabel) { if (mgrErr) { mgrErr.textContent = 'Nome inválido'; mgrErr.style.display = 'block'; } return; }
+                const newKey = slugify(newLabel);
+                // if key changed and conflicts
+                if (newKey !== c.key && categories.find(x => x.key === newKey)) { if (mgrErr) { mgrErr.textContent = 'Key já existe'; mgrErr.style.display = 'block'; } return; }
+                c.label = newLabel; c.icon = newIcon; c.key = newKey;
+                saveCategories(); populateCategorySelects(); populateCategoryManager();
+            };
+            cancel.onclick = () => populateCategoryManager();
+            actions.appendChild(save); actions.appendChild(cancel);
+            row.appendChild(left); row.appendChild(actions);
+        } else {
+            row.innerHTML = `<div><strong>${c.icon || ''} ${c.label}</strong> <span style="color:var(--text-secondary); font-size:12px; margin-left:8px;">(${c.key})</span></div>`;
+        }
+        list.appendChild(row);
+    });
+}
+
+// Location manager
+function showLocationManager() {
+    populateLocationManager();
+    const modal = document.getElementById('locationManagerModal');
+    if (!modal) return;
+    openModal(modal);
+}
+
+function closeLocationManager() {
+    const modal = document.getElementById('locationManagerModal');
+    if (!modal) return;
+    closeModalEl(modal);
+}
+
+function populateLocationManager() {
+    const list = document.getElementById('locationManagerList');
+    if (!list) return;
+    list.innerHTML = '';
+    locations.forEach(loc => {
+        const container = document.createElement('div');
+        container.style.borderBottom = '1px solid var(--border-color)';
+        container.style.padding = '8px 0';
+        const header = document.createElement('div');
+        header.style.display = 'flex'; header.style.justifyContent = 'space-between'; header.style.alignItems = 'center';
+        header.innerHTML = `<strong>${loc.name}</strong>`;
+        const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.gap = '8px';
+        const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
+        const addSubBtn = document.createElement('button'); addSubBtn.className = 'btn-secondary'; addSubBtn.textContent = '+ Sub';
+        const delBtn = document.createElement('button'); delBtn.className = 'btn-secondary'; delBtn.textContent = 'Eliminar';
+        editBtn.onclick = () => editLocationInline(loc.name);
+        addSubBtn.onclick = () => showAddSublocationModal(loc.name);
+        delBtn.onclick = () => {
+            if (!confirm('Eliminar local e todos os sub-locais?')) return;
+            locations = locations.filter(l => l.name !== loc.name);
+            saveLocations();
+            populateLocationSelects();
+            populateLocationFilters();
+            populateLocationManager();
+        };
+        actions.appendChild(editBtn); actions.appendChild(addSubBtn); actions.appendChild(delBtn);
+        header.appendChild(actions);
+        container.appendChild(header);
+
+        if (loc.subs && loc.subs.length) {
+            const ul = document.createElement('ul'); ul.style.marginTop = '8px';
+            loc.subs.forEach(sub => {
+                const li = document.createElement('li'); li.style.display = 'flex'; li.style.justifyContent = 'space-between'; li.style.alignItems = 'center';
+                li.innerHTML = `<span>${sub}</span>`;
+                const subActions = document.createElement('div'); subActions.style.display = 'flex'; subActions.style.gap = '8px';
+                const editSub = document.createElement('button'); editSub.className = 'btn-primary'; editSub.textContent = 'Editar';
+                const delSub = document.createElement('button'); delSub.className = 'btn-secondary'; delSub.textContent = 'Eliminar';
+                editSub.onclick = () => editSublocationInline(loc.name, sub);
+                delSub.onclick = () => {
+                    if (!confirm('Eliminar sub-local?')) return;
+                    loc.subs = loc.subs.filter(s => s !== sub);
+                    saveLocations();
+                    populateLocationSelects();
+                    populateLocationFilters();
+                    populateLocationManager();
+                };
+                subActions.appendChild(editSub); subActions.appendChild(delSub);
+                li.appendChild(subActions);
+                ul.appendChild(li);
+            });
+            container.appendChild(ul);
+        }
+
+        list.appendChild(container);
+    });
+}
+
+function editLocationInline(name) {
+    const loc = locations.find(l => l.name === name);
+    if (!loc) return;
+    const list = document.getElementById('locationManagerList'); if (!list) return;
+    list.innerHTML = '';
+    locations.forEach(l => {
+        const container = document.createElement('div');
+        container.style.padding = '8px 0'; container.style.borderBottom = '1px solid var(--border-color)';
+        if (l.name === name) {
+            const left = document.createElement('div');
+            left.innerHTML = `<input id="editLocationName" value="${l.name}" style="padding:6px; margin-right:8px;">`;
+            const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.gap = '8px';
+            const save = document.createElement('button'); save.className = 'btn-primary'; save.textContent = 'Salvar';
+            const cancel = document.createElement('button'); cancel.className = 'btn-secondary'; cancel.textContent = 'Cancelar';
+            save.onclick = () => {
+                const newName = document.getElementById('editLocationName').value.trim();
+                const mgrErr = document.getElementById('locationManagerError'); if (mgrErr) { mgrErr.style.display='none'; mgrErr.textContent=''; }
+                if (!newName) { if (mgrErr) { mgrErr.textContent = 'Nome inválido'; mgrErr.style.display='block'; } return; }
+                // update name and any inventory references
+                l.name = newName;
+                locations = locations.map(x => x === l ? l : x);
+                // update inventory items that referenced old name
+                inventory.forEach(it => { if (it.locationParent === name) it.locationParent = newName; });
+                saveLocations(); saveInventory(); populateLocationSelects(); populateLocationFilters(); populateLocationManager();
+            };
+            cancel.onclick = () => populateLocationManager();
+            actions.appendChild(save); actions.appendChild(cancel);
+            container.appendChild(left); container.appendChild(actions);
+        } else {
+            const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between'; header.style.alignItems='center';
+            header.innerHTML = `<strong>${l.name}</strong>`;
+            container.appendChild(header);
+        }
+        list.appendChild(container);
+    });
+}
+
+function editSublocationInline(parentName, subName) {
+    const parent = locations.find(l => l.name === parentName);
+    if (!parent) return;
+    const list = document.getElementById('locationManagerList'); if (!list) return;
+    list.innerHTML = '';
+    locations.forEach(l => {
+        const container = document.createElement('div');
+        container.style.padding = '8px 0'; container.style.borderBottom = '1px solid var(--border-color)';
+        const header = document.createElement('div'); header.style.display='flex'; header.style.justifyContent='space-between'; header.style.alignItems='center';
+        header.innerHTML = `<strong>${l.name}</strong>`;
+        container.appendChild(header);
+        if (l.name === parentName) {
+            const ul = document.createElement('ul'); ul.style.marginTop='8px';
+            l.subs.forEach(s => {
+                const li = document.createElement('li'); li.style.display='flex'; li.style.justifyContent='space-between'; li.style.alignItems='center';
+                if (s === subName) {
+                    const left = document.createElement('div');
+                    left.innerHTML = `<input id="editSubName" value="${s}" style="padding:6px; margin-right:8px;">`;
+                    const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px';
+                    const save = document.createElement('button'); save.className='btn-primary'; save.textContent='Salvar';
+                    const cancel = document.createElement('button'); cancel.className='btn-secondary'; cancel.textContent='Cancelar';
+                    save.onclick = () => {
+                        const newName = document.getElementById('editSubName').value.trim();
+                        const mgrErr = document.getElementById('locationManagerError'); if (mgrErr) { mgrErr.style.display='none'; mgrErr.textContent=''; }
+                        if (!newName) { if (mgrErr) { mgrErr.textContent = 'Nome inválido'; mgrErr.style.display='block'; } return; }
+                        l.subs = l.subs.map(x => x === s ? newName : x);
+                        // update inventory references
+                        inventory.forEach(it => { if (it.locationParent === parentName && it.locationChild === s) it.locationChild = newName; });
+                        saveLocations(); saveInventory(); populateLocationSelects(); populateLocationFilters(); populateLocationManager();
+                    };
+                    cancel.onclick = () => populateLocationManager();
+                    actions.appendChild(save); actions.appendChild(cancel);
+                    li.appendChild(left); li.appendChild(actions);
+                } else {
+                    li.innerHTML = `<span>${s}</span>`;
+                }
+                ul.appendChild(li);
+            });
+            container.appendChild(ul);
+        }
+        list.appendChild(container);
+    });
 }
 
 // Delete modal
@@ -457,13 +753,13 @@ function showDeleteModal(id) {
     if (!modal || !msg || !item) return;
     pendingDeleteId = id;
     msg.textContent = `Tem certeza que deseja eliminar "${item.name}"?`;
-    modal.classList.add('active');
+    openModal(modal);
 }
 
 function closeDeleteModal() {
     const modal = document.getElementById('deleteModal');
     if (!modal) return;
-    modal.classList.remove('active');
+    closeModalEl(modal);
     pendingDeleteId = null;
 }
 
@@ -704,7 +1000,7 @@ function showAddItemModal() {
     // Garantir que os selects de localização estão populados ao abrir modal de adicionar
     populateLocationSelects('', '');
     populateLocationFilters();
-    document.getElementById('itemModal').classList.add('active');
+    openModal(document.getElementById('itemModal'));
 }
 
 function showEditItemModal(id) {
@@ -745,11 +1041,11 @@ function showEditItemModal(id) {
     if (parentSel) parentSel.value = parentVal || '';
     if (childSel) childSel.value = childVal || '';
     document.getElementById('itemNotes').value = item.notes || '';
-    document.getElementById('itemModal').classList.add('active');
+    openModal(document.getElementById('itemModal'));
 }
 
 function closeModal() {
-    document.getElementById('itemModal').classList.remove('active');
+    closeModalEl(document.getElementById('itemModal'));
     currentEditId = null;
 }
 
@@ -853,8 +1149,7 @@ function renderItems() {
 
     // Render helper
     function renderItemCard(item) {
-        const categoryIcons = { ferramentas: '🔨', eletrico: '⚡', eletronico: '🔌', placas: '🖥️', ferragens: '🔩', outros: '📦' };
-        const categoryNames = { ferramentas: 'Ferramentas', eletrico: 'Material Elétrico', eletronico: 'Componentes Eletrônicos', placas: 'Placas e Arduinos', ferragens: 'Ferragens', outros: 'Outros' };
+        const catObj = categories.find(c => c.key === item.category) || { icon: '', label: item.category || '' };
         const isLowStock = item.quantity <= item.minStock && item.quantity > 0;
         const isEmpty = item.quantity === 0;
         let stockClass = '';
@@ -867,7 +1162,7 @@ function renderItems() {
                 <div class="item-header">
                     <div>
                         <div class="item-title">${item.name}</div>
-                        <div class="item-category">${categoryIcons[item.category]} ${categoryNames[item.category]}</div>
+                        <div class="item-category">${catObj.icon || ''} ${catObj.label || item.category}</div>
                     </div>
                 </div>
                 <div class="item-details">
@@ -928,6 +1223,10 @@ window.onclick = function(event) {
     const itemModalEl = document.getElementById('itemModal');
     const locModalEl = document.getElementById('locationModal');
     const subModalEl = document.getElementById('sublocationModal');
+    const catModalEl = document.getElementById('categoryModal');
+    const catMgrEl = document.getElementById('categoryManagerModal');
+    const locMgrEl = document.getElementById('locationManagerModal');
+    const deleteEl = document.getElementById('deleteModal');
     if (event.target === itemModalEl) {
         closeModal();
     }
@@ -936,5 +1235,17 @@ window.onclick = function(event) {
     }
     if (event.target === subModalEl) {
         closeSublocationModal();
+    }
+    if (event.target === catModalEl) {
+        closeCategoryModal();
+    }
+    if (event.target === catMgrEl) {
+        closeCategoryManager();
+    }
+    if (event.target === locMgrEl) {
+        closeLocationManager();
+    }
+    if (event.target === deleteEl) {
+        closeDeleteModal();
     }
 }

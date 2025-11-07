@@ -30,6 +30,13 @@
         </header>
 
         <div class="container">
+            <!-- Toolbar: manager buttons + Add Item -->
+            <div class="toolbar" style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
+                <button type="button" class="btn-secondary" onclick="showCategoryManager()">Gestor Categorias</button>
+                <button type="button" class="btn-secondary" onclick="showLocationManager()">Gestor Locais</button>
+                <button type="button" class="btn-primary" onclick="showAddItemModal()">➕ Adicionar Item</button>
+            </div>
+
             <!-- Filtros e Busca -->
             <div class="controls">
                 <div class="search-box">
@@ -136,12 +143,11 @@
                 <div class="form-group">
                     <label for="itemCategory">Categoria (rápido)</label>
                     <div style="display:flex; gap:8px; align-items:center;">
-                        <!-- keep the existing select as primary for forms -->
-                        <select id="itemCategory" required>
-                            <!-- options populated on load -->
-                        </select>
+                        <!-- dynamic select will be populated on load -->
+                        <select id="itemCategory" required></select>
                         <button type="button" class="btn-secondary" onclick="showAddCategoryModal()">+ Categoria</button>
                     </div>
+                    <p class="modal-error" id="itemCategoryError" style="color:var(--danger-color); margin-top:6px; display:none;"></p>
                 </div>
 
                 <div class="form-group">
@@ -167,6 +173,7 @@
                     <label for="locationName">Nome do Local *</label>
                     <input type="text" id="locationName" required placeholder="Ex: Armário, Caixa">
                 </div>
+                <p class="modal-error" id="locationError" style="color:var(--danger-color); margin-top:6px; display:none;"></p>
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="closeLocationModal()">Cancelar</button>
                     <button type="submit" class="btn-primary">Adicionar Local</button>
@@ -189,6 +196,7 @@
                     <label for="sublocationName">Nome do Sub-Local *</label>
                     <input type="text" id="sublocationName" required placeholder="Ex: Gaveta 1">
                 </div>
+                <p class="modal-error" id="sublocationError" style="color:var(--danger-color); margin-top:6px; display:none;"></p>
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="closeSublocationModal()">Cancelar</button>
                     <button type="submit" class="btn-primary">Adicionar Sub-Local</button>
@@ -207,11 +215,29 @@
                     <label for="categoryName">Nome da Categoria *</label>
                     <input type="text" id="categoryName" required placeholder="Ex: sensores, cabos">
                 </div>
+                <div class="form-group">
+                    <label for="categoryIcon">Ícone (emoji)</label>
+                    <input type="text" id="categoryIcon" placeholder="Ex: 🔌 (opcional)">
+                </div>
+                <p class="modal-error" id="categoryError" style="color:var(--danger-color); margin-top:6px; display:none;"></p>
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" onclick="closeCategoryModal()">Cancelar</button>
                     <button type="submit" class="btn-primary">Adicionar Categoria</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Modal: Gestor de Categorias -->
+    <div id="categoryManagerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCategoryManager()">&times;</span>
+            <h2>Gestor de Categorias</h2>
+            <p class="modal-error" id="categoryManagerError" style="color:var(--danger-color); margin-top:6px; display:none;"></p>
+            <div id="categoryManagerList"></div>
+            <div style="margin-top:12px; display:flex; gap:8px;">
+                <button class="btn-secondary" onclick="showAddCategoryModal()">+ Nova Categoria</button>
+            </div>
         </div>
     </div>
 
@@ -224,6 +250,19 @@
             <div class="form-actions">
                 <button type="button" class="btn-secondary" onclick="closeDeleteModal()">Cancelar</button>
                 <button type="button" class="btn-primary" onclick="confirmDelete()">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Gestor de Locais e Sub-Locais -->
+    <div id="locationManagerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeLocationManager()">&times;</span>
+            <h2>Gestor de Locais</h2>
+            <p class="modal-error" id="locationManagerError" style="color:var(--danger-color); margin-top:6px; display:none;"></p>
+            <div id="locationManagerList"></div>
+            <div style="margin-top:12px; display:flex; gap:8px;">
+                <button class="btn-secondary" onclick="showAddLocationModal()">+ Novo Local</button>
             </div>
         </div>
     </div>
