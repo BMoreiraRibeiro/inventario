@@ -4,7 +4,7 @@ let currentEditId = null;
 let isLoggedIn = false;
 let locations = [];
 let categories = [];
-let pendingDeleteId = null;
+let pendingDeleteContext = null; // { type: 'item'|'category'|'location'|'sublocation', payload: ... }
 let modalZIndex = 1000;
 
 function openModal(el) {
@@ -441,7 +441,6 @@ function populateCategorySelects(selected) {
     const filter = document.getElementById('categoryFilter');
     const itemSel = document.getElementById('itemCategory');
     if (!filter || !itemSel) return;
-
     // preserve current filter
     const currentFilter = filter.value || 'all';
     filter.innerHTML = '';
@@ -541,11 +540,7 @@ function populateCategoryManager() {
         const delBtn = document.createElement('button'); delBtn.className = 'btn-secondary'; delBtn.textContent = 'Eliminar';
         editBtn.onclick = () => editCategoryInline(cat.key);
         delBtn.onclick = () => {
-            if (!confirm('Eliminar categoria?')) return;
-            categories = categories.filter(c => c.key !== cat.key);
-            saveCategories();
-            populateCategorySelects();
-            populateCategoryManager();
+            showDeleteModal({ type: 'category', key: cat.key });
         };
         actions.appendChild(editBtn); actions.appendChild(delBtn);
         row.appendChild(actions);
@@ -624,14 +619,9 @@ function populateLocationManager() {
         const delBtn = document.createElement('button'); delBtn.className = 'btn-secondary'; delBtn.textContent = 'Eliminar';
         editBtn.onclick = () => editLocationInline(loc.name);
         addSubBtn.onclick = () => showAddSublocationModal(loc.name);
-        delBtn.onclick = () => {
-            if (!confirm('Eliminar local e todos os sub-locais?')) return;
-            locations = locations.filter(l => l.name !== loc.name);
-            saveLocations();
-            populateLocationSelects();
-            populateLocationFilters();
-            populateLocationManager();
-        };
+            delBtn.onclick = () => {
+                showDeleteModal({ type: 'location', name: loc.name });
+            };
         actions.appendChild(editBtn); actions.appendChild(addSubBtn); actions.appendChild(delBtn);
         header.appendChild(actions);
         container.appendChild(header);
@@ -646,12 +636,7 @@ function populateLocationManager() {
                 const delSub = document.createElement('button'); delSub.className = 'btn-secondary'; delSub.textContent = 'Eliminar';
                 editSub.onclick = () => editSublocationInline(loc.name, sub);
                 delSub.onclick = () => {
-                    if (!confirm('Eliminar sub-local?')) return;
-                    loc.subs = loc.subs.filter(s => s !== sub);
-                    saveLocations();
-                    populateLocationSelects();
-                    populateLocationFilters();
-                    populateLocationManager();
+                    showDeleteModal({ type: 'sublocation', parent: loc.name, name: sub });
                 };
                 subActions.appendChild(editSub); subActions.appendChild(delSub);
                 li.appendChild(subActions);
@@ -746,13 +731,40 @@ function editSublocationInline(parentName, subName) {
 }
 
 // Delete modal
-function showDeleteModal(id) {
+function showDeleteModal(target) {
+    // target can be number (item id) or object { type, payload }
     const modal = document.getElementById('deleteModal');
     const msg = document.getElementById('deleteMessage');
-    const item = inventory.find(i => i.id === id);
-    if (!modal || !msg || !item) return;
-    pendingDeleteId = id;
-    msg.textContent = `Tem certeza que deseja eliminar "${item.name}"?`;
+    if (!modal || !msg) return;
+    let text = 'Tem certeza que deseja eliminar este item?';
+    if (typeof target === 'number' || typeof target === 'string') {
+        // legacy: item id
+        const id = Number(target);
+        const item = inventory.find(i => i.id === id);
+        if (!item) return;
+        pendingDeleteContext = { type: 'item', payload: { id } };
+        text = `Tem certeza que deseja eliminar "${item.name}"?`;
+    } else if (typeof target === 'object' && target) {
+        const t = target.type;
+        if (t === 'category') {
+            const cat = categories.find(c => c.key === target.key);
+            pendingDeleteContext = { type: 'category', payload: { key: target.key } };
+            text = `Eliminar categoria "${cat ? cat.label : target.key}" e remover associação de itens?`;
+        } else if (t === 'location') {
+            pendingDeleteContext = { type: 'location', payload: { name: target.name } };
+            text = `Eliminar local "${target.name}" e todos os seus sub-locais?`;
+        } else if (t === 'sublocation') {
+            pendingDeleteContext = { type: 'sublocation', payload: { parent: target.parent, name: target.name } };
+            text = `Eliminar sub-local "${target.name}" do local "${target.parent}"?`;
+        } else {
+            // fallback
+            pendingDeleteContext = null;
+            return;
+        }
+    } else {
+        return;
+    }
+    msg.textContent = text;
     openModal(modal);
 }
 
@@ -760,20 +772,55 @@ function closeDeleteModal() {
     const modal = document.getElementById('deleteModal');
     if (!modal) return;
     closeModalEl(modal);
-    pendingDeleteId = null;
+    pendingDeleteContext = null;
 }
 
 function confirmDelete() {
-    if (!pendingDeleteId) return;
-    const id = pendingDeleteId;
-    pendingDeleteId = null;
-    const item = inventory.find(i => i.id === id);
-    if (!item) { closeDeleteModal(); return; }
-    inventory = inventory.filter(i => i.id !== id);
-    saveInventory();
-    closeDeleteModal();
-    renderItems();
-    updateStats();
+    if (!pendingDeleteContext) return closeDeleteModal();
+    const ctx = pendingDeleteContext;
+    pendingDeleteContext = null;
+    if (ctx.type === 'item') {
+        const id = ctx.payload.id;
+        inventory = inventory.filter(i => i.id !== id);
+        saveInventory();
+        closeDeleteModal();
+        renderItems();
+        updateStats();
+        return;
+    }
+    if (ctx.type === 'category') {
+        const key = ctx.payload.key;
+        // remove category and clear from items
+        categories = categories.filter(c => c.key !== key);
+        inventory.forEach(it => { if (it.category === key) it.category = ''; });
+        saveCategories(); saveInventory();
+        populateCategorySelects(); populateCategoryManager();
+        closeDeleteModal();
+        renderItems(); updateStats();
+        return;
+    }
+    if (ctx.type === 'location') {
+        const name = ctx.payload.name;
+        locations = locations.filter(l => l.name !== name);
+        // clear location references in items
+        inventory.forEach(it => { if (it.locationParent === name) { it.locationParent = ''; it.locationChild = ''; } });
+        saveLocations(); saveInventory();
+        populateLocationSelects(); populateLocationFilters(); populateLocationManager();
+        closeDeleteModal(); renderItems(); updateStats();
+        return;
+    }
+    if (ctx.type === 'sublocation') {
+        const parent = ctx.payload.parent;
+        const name = ctx.payload.name;
+        const loc = locations.find(l => l.name === parent);
+        if (loc) loc.subs = loc.subs.filter(s => s !== name);
+        // clear item references to this sublocation
+        inventory.forEach(it => { if (it.locationParent === parent && it.locationChild === name) it.locationChild = ''; });
+        saveLocations(); saveInventory();
+        populateLocationSelects(); populateLocationFilters(); populateLocationManager();
+        closeDeleteModal(); renderItems(); updateStats();
+        return;
+    }
 }
 
 function onLocationFilterChange() {
