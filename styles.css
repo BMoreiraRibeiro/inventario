@@ -126,6 +126,36 @@ header h1 {
     color: var(--text-primary);
 }
 
+/* Header small stats next to title */
+.header-stats {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-left: 16px;
+}
+.header-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 12px;
+}
+.header-stat .stat-number {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--primary-color);
+}
+.header-stat .stat-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+.header-stat.clickable { cursor: pointer; }
+.header-stat.clickable:hover { background: var(--hover-bg); }
+
 .logout-btn {
     padding: 8px 16px;
     background: var(--danger-color);
@@ -185,6 +215,30 @@ header h1 {
     background: var(--input-bg);
     color: var(--text-primary);
     cursor: pointer;
+}
+
+/* Make selects robust on Android: avoid collapsing in flex containers and ensure text is visible */
+select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    display: inline-block;
+    min-width: 120px; /* prevents collapse in small flex containers */
+    min-height: 44px; /* touch target */
+    line-height: 1.2;
+    padding: 8px 10px;
+    color: var(--text-primary);
+    background: var(--input-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 15px;
+    flex: 0 1 auto; /* don't shrink to zero inside flex */
+}
+
+/* Ensure option text is readable on all platforms */
+select option {
+    color: var(--text-primary);
+    background: var(--card-bg);
 }
 
 .category-filter select:focus {
@@ -259,6 +313,19 @@ header h1 {
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
 }
+
+/* Low stock modal list rows */
+#lowStockList .low-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+#lowStockList .low-row .name { color: var(--text-primary); }
+#lowStockList .low-row .qty { font-weight:700; color: var(--warning-color); }
+#lowStockList .low-row { cursor: pointer; }
+#lowStockList .low-row:hover { background: var(--hover-bg); }
 
 .item-card {
     background: var(--card-bg);

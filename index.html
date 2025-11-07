@@ -27,6 +27,16 @@
         <header>
             <h1>📦 Inventário Pessoal</h1>
             <button onclick="logout()" class="logout-btn">Sair</button>
+            <div class="header-stats">
+                <div class="header-stat">
+                    <div class="stat-number" id="totalItems">0</div>
+                    <div class="stat-label">Itens</div>
+                </div>
+                <div class="header-stat clickable" id="lowStockHeader" onclick="showLowStockModal()">
+                    <div class="stat-number" id="lowStock">0</div>
+                    <div class="stat-label">Stock baixo</div>
+                </div>
+            </div>
         </header>
 
         <div class="container">
@@ -68,25 +78,10 @@
                         <option value="locationParent">Local</option>
                         <option value="locationChild">Sub-Local</option>
                     </select>
-                    <button onclick="showAddItemModal()" class="btn-primary">➕ Adicionar Item</button>
                 </div>
             </div>
 
-            <!-- Estatísticas -->
-            <div class="stats">
-                <div class="stat-card">
-                    <h3 id="totalItems">0</h3>
-                    <p>Total de Itens</p>
-                </div>
-                <div class="stat-card">
-                    <h3 id="totalCategories">0</h3>
-                    <p>Categorias</p>
-                </div>
-                <div class="stat-card">
-                    <h3 id="lowStock">0</h3>
-                    <p>Stock Baixo</p>
-                </div>
-            </div>
+            <!-- Estatísticas (removido contador de categorias conforme pedido) -->
 
             <!-- Lista de Itens -->
             <div id="itemsList" class="items-grid">
@@ -250,6 +245,18 @@
             <div class="form-actions">
                 <button type="button" class="btn-secondary" onclick="closeDeleteModal()">Cancelar</button>
                 <button type="button" class="btn-primary" onclick="confirmDelete()">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Lista de items com stock baixo -->
+    <div id="lowStockModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeLowStockModal()">&times;</span>
+            <h2>Itens com Stock Baixo</h2>
+            <div id="lowStockList" style="max-height:60vh; overflow:auto; margin-top:12px;"></div>
+            <div class="form-actions" style="margin-top:12px;">
+                <button type="button" class="btn-secondary" onclick="closeLowStockModal()">Fechar</button>
             </div>
         </div>
     </div>

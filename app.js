@@ -823,6 +823,49 @@ function confirmDelete() {
     }
 }
 
+// Low-stock modal: open, close and populate
+function showLowStockModal() {
+    const modal = document.getElementById('lowStockModal');
+    if (!modal) return;
+    populateLowStockList();
+    openModal(modal);
+}
+
+function closeLowStockModal() {
+    const modal = document.getElementById('lowStockModal');
+    if (!modal) return;
+    closeModalEl(modal);
+}
+
+function populateLowStockList() {
+    const container = document.getElementById('lowStockList');
+    if (!container) return;
+    container.innerHTML = '';
+    const lowItems = inventory.filter(item => item.quantity <= (item.minStock || 0));
+    if (!lowItems.length) {
+        container.innerHTML = '<div style="padding:12px;color:var(--text-secondary);">Nenhum item com stock baixo</div>';
+        return;
+    }
+    lowItems.forEach(it => {
+        const row = document.createElement('div');
+        row.className = 'low-row';
+        const name = document.createElement('div'); name.className = 'name';
+        name.textContent = it.name;
+        const qty = document.createElement('div'); qty.className = 'qty';
+        qty.textContent = `${it.quantity}`;
+        row.appendChild(name);
+        row.appendChild(qty);
+        // make row clickable to open edit modal for this item
+        row.style.cursor = 'pointer';
+        row.onclick = () => {
+            closeLowStockModal();
+            // small timeout to ensure modal closed before opening next
+            setTimeout(() => showEditItemModal(it.id), 80);
+        };
+        container.appendChild(row);
+    });
+}
+
 function onLocationFilterChange() {
     // update child options and then filter
     const parentSel = document.getElementById('locationFilterParent');
@@ -1254,9 +1297,10 @@ function updateStats() {
     // Total de itens
     document.getElementById('totalItems').textContent = inventory.length;
     
-    // Total de categorias únicas
+    // Total de categorias únicas (se existir o elemento)
     const uniqueCategories = new Set(inventory.map(item => item.category));
-    document.getElementById('totalCategories').textContent = uniqueCategories.size;
+    const catEl = document.getElementById('totalCategories');
+    if (catEl) catEl.textContent = uniqueCategories.size;
     
     // Items com stock baixo
     const lowStockCount = inventory.filter(item => 
