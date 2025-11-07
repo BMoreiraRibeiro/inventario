@@ -1,14 +1,15 @@
-const CACHE_NAME = 'inventario-cache-v1';
+const CACHE_NAME = 'inventario-cache-v2';
+const BASE_PATH = '/inventario';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/styles.css',
-  '/app.js',
-  '/config.js',
-  '/supabase-sync.js',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  `${BASE_PATH}/`,
+  `${BASE_PATH}/index.html`,
+  `${BASE_PATH}/styles.css`,
+  `${BASE_PATH}/app.js`,
+  `${BASE_PATH}/config.js`,
+  `${BASE_PATH}/supabase-sync.js`,
+  `${BASE_PATH}/manifest.json`,
+  `${BASE_PATH}/icon-192.png`,
+  `${BASE_PATH}/icon-512.png`
 ];
 
 self.addEventListener('install', (event) => {

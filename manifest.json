@@ -2,20 +2,21 @@
   "name": "Inventário Pessoal",
   "short_name": "Inventário",
   "description": "Gestão de inventário pessoal com categorias e localizações",
-  "start_url": "./index.html",
+  "start_url": "/inventario/",
+  "scope": "/inventario/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/inventario/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
+      "src": "/inventario/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
