@@ -42,38 +42,33 @@ async function syncCategoriesToCloud() {
         if (fetchError) throw fetchError;
         console.log(`☁️ Cloud categories count: ${cloudCategories?.length || 0}`);
 
-        // Delete cloud categories that don't exist locally
+        // Build payload for upsert: include key, label, icon
+        const payload = localCategories.map(c => ({ key: c.key, label: c.label, icon: c.icon || '' }));
+
+        // Batch upsert by key
+        const { data: upserted, error: upsertErr } = await supabase
+            .from('categories')
+            .upsert(payload, { onConflict: 'key' })
+            .select('key');
+
+        if (upsertErr) {
+            console.error('❌ Error upserting categories:', upsertErr);
+        } else {
+            console.log(`✅ Categories upserted: ${upserted?.length || 0}`);
+        }
+
+        // Delete cloud categories that don't exist locally (in a batch)
         const localKeys = localCategories.map(c => c.key);
         const toDelete = (cloudCategories || []).filter(cc => !localKeys.includes(cc.key));
         if (toDelete.length > 0) {
             console.log(`🗑️ Deleting ${toDelete.length} categories from cloud`);
-            for (const c of toDelete) {
-                const { error: delErr } = await supabase
-                    .from('categories')
-                    .delete()
-                    .eq('key', c.key);
+            const keysToDelete = toDelete.map(d => d.key);
+            // perform deletes sequentially to respect policies
+            for (const k of keysToDelete) {
+                const { error: delErr } = await supabase.from('categories').delete().eq('key', k);
                 if (delErr) console.error('❌ Error deleting category:', delErr);
             }
         }
-
-        // Upsert local categories (simple insert/update loop for clarity)
-        for (const cat of localCategories) {
-            const exists = (await supabase.from('categories').select('*').eq('key', cat.key)).data?.[0];
-            if (exists) {
-                const { error: uErr } = await supabase
-                    .from('categories')
-                    .update({ label: cat.label, icon: cat.icon })
-                    .eq('key', cat.key);
-                if (uErr) console.error('❌ Error updating category:', uErr);
-            } else {
-                const { error: iErr } = await supabase
-                    .from('categories')
-                    .insert({ key: cat.key, label: cat.label, icon: cat.icon });
-                if (iErr) console.error('❌ Error inserting category:', iErr);
-            }
-        }
-
-        console.log('✅ Categories synced (upsert + deletes)');
     } catch (error) {
         console.error('❌ Sync categories error:', error);
     }
@@ -107,55 +102,38 @@ async function syncLocationsToCloud() {
             }
         }
 
+        // Batch upsert locations by name
+        const locPayload = localLocations.map(l => ({ name: l.name }));
+        const { data: locUpserted, error: locUpsertErr } = await supabase
+            .from('locations')
+            .upsert(locPayload, { onConflict: 'name' })
+            .select('id,name');
+
+        if (locUpsertErr) {
+            console.error('❌ Error upserting locations:', locUpsertErr);
+        } else {
+            console.log(`✅ Locations upserted: ${locUpserted?.length || 0}`);
+        }
+
+        // Map location name -> id from server (after upsert fetch)
+        const { data: serverLocations } = await supabase.from('locations').select('id,name');
+        const nameToId = (serverLocations || []).reduce((acc, cur) => { acc[cur.name] = cur.id; return acc; }, {});
+
+        // Replace sublocations for each local location: delete existing and insert current
         for (const loc of localLocations) {
-            const exists = (await supabase.from('locations').select('*').eq('name', loc.name)).data?.[0];
-            if (exists) {
-                // Update location (name likely unchanged)
-                const { data: locationData, error: updErr } = await supabase
-                    .from('locations')
-                    .update({ name: loc.name })
-                    .eq('name', loc.name)
-                    .select()
-                    .single();
-
-                if (updErr) console.error('❌ Error updating location:', updErr);
-
-                if (locationData) {
-                    // Replace sublocations: delete old and insert new ones
-                    const { error: delSubsErr } = await supabase
-                        .from('sublocations')
-                        .delete()
-                        .eq('location_id', locationData.id);
-                    if (delSubsErr) console.error('❌ Error deleting sublocations:', delSubsErr);
-
-                    if (loc.subs && loc.subs.length > 0) {
-                        const { error: insSubsErr } = await supabase
-                            .from('sublocations')
-                            .insert(loc.subs.map(sub => ({ location_id: locationData.id, name: sub })));
-                        if (insSubsErr) console.error('❌ Error inserting sublocations:', insSubsErr);
-                    }
-                }
-            } else {
-                // Insert location and its sublocations
-                const { data: newLocation, error: insErr } = await supabase
-                    .from('locations')
-                    .insert({ name: loc.name })
-                    .select()
-                    .single();
-                if (insErr) {
-                    console.error('❌ Error inserting location:', insErr);
-                    continue;
-                }
-                if (newLocation && loc.subs && loc.subs.length > 0) {
-                    const { error: insSubsErr } = await supabase
-                        .from('sublocations')
-                        .insert(loc.subs.map(sub => ({ location_id: newLocation.id, name: sub })));
-                    if (insSubsErr) console.error('❌ Error inserting sublocations:', insSubsErr);
-                }
+            const locId = nameToId[loc.name];
+            if (!locId) continue;
+            // delete existing sublocations
+            const { error: delErr } = await supabase.from('sublocations').delete().eq('location_id', locId);
+            if (delErr) console.error('❌ Error deleting sublocations for', loc.name, delErr);
+            if (loc.subs && loc.subs.length > 0) {
+                const subsPayload = loc.subs.map(s => ({ location_id: locId, name: s }));
+                const { error: insErr } = await supabase.from('sublocations').insert(subsPayload);
+                if (insErr) console.error('❌ Error inserting sublocations for', loc.name, insErr);
             }
         }
 
-        console.log('✅ Locations synced (upsert + deletes)');
+        console.log('✅ Locations synced (batch upsert + sublocations replaced)');
     } catch (error) {
         console.error('❌ Sync locations error:', error);
     }
@@ -338,6 +316,8 @@ async function syncToCloud() {
     try {
         isSyncing = true;
         showSyncStatus('Sincronizando...');
+        // Show blocking UI while doing full sync
+        try { document.getElementById('blockingSyncOverlay').style.display = 'flex'; } catch(e) {}
         
         await syncCategoriesToCloud();
         await syncLocationsToCloud();
@@ -352,6 +332,7 @@ async function syncToCloud() {
         showSyncStatus('✗ Erro ao sincronizar', false);
     } finally {
         isSyncing = false;
+        try { document.getElementById('blockingSyncOverlay').style.display = 'none'; } catch(e) {}
     }
 }
 

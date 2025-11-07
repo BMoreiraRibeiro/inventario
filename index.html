@@ -292,5 +292,61 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-sync.js"></script>
     <script src="app.js"></script>
+    <script>
+        // Register service worker for PWA updates and notify user when a new version is available
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js')
+                .then(reg => {
+                    console.log('✅ Service worker registered', reg);
+
+                    function notifyNewVersion(registration) {
+                        const syncStatus = document.getElementById('syncStatus');
+                        if (!syncStatus) return;
+                        syncStatus.style.display = 'inline-block';
+                        syncStatus.style.cursor = 'pointer';
+                        syncStatus.textContent = 'Nova versão disponível — clique para atualizar';
+                        syncStatus.onclick = () => {
+                            if (registration.waiting) {
+                                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                            }
+                        };
+                    }
+
+                    // If there's an already waiting SW, notify immediately
+                    if (reg.waiting) {
+                        notifyNewVersion(reg);
+                    }
+
+                    // Watch for updates
+                    reg.addEventListener('updatefound', () => {
+                        const newSW = reg.installing;
+                        newSW.addEventListener('statechange', () => {
+                            if (newSW.state === 'installed') {
+                                if (navigator.serviceWorker.controller) {
+                                    // New version available
+                                    notifyNewVersion(reg);
+                                } else {
+                                    console.log('Content cached for offline use.');
+                                }
+                            }
+                        });
+                    });
+
+                    // When the new SW takes control, reload so user sees new content
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        console.log('Service worker controller changed — reloading to activate new version');
+                        window.location.reload();
+                    });
+                })
+                .catch(err => console.error('❌ Service worker registration failed:', err));
+        }
+    </script>
+    <!-- Blocking sync overlay -->
+    <div id="blockingSyncOverlay" style="display:none;">
+        <div class="blocking-sync-inner">
+            <div class="spinner" aria-hidden="true"></div>
+            <div class="blocking-sync-text">Sincronizando com a cloud…</div>
+        </div>
+    </div>
 </body>
 </html>

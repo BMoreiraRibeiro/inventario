@@ -686,6 +686,37 @@ option { white-space: normal; }
     color: var(--text-primary);
 }
 
+/* Blocking sync overlay */
+#blockingSyncOverlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.55);
+    z-index: 99999;
+}
+#blockingSyncOverlay .blocking-sync-inner {
+    background: var(--card-bg);
+    padding: 20px 28px;
+    border-radius: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+}
+.spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 4px solid rgba(0,0,0,0.08);
+    border-top-color: var(--primary-color);
+    animation: spin 1s linear infinite;
+}
+.blocking-sync-text { color: var(--text-primary); font-weight:600; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .form-group {
     margin-bottom: 20px;
 }
