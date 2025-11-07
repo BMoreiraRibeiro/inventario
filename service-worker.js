@@ -40,6 +40,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
 
+  // Ignore chrome-extension and other non-http(s) schemes
+  if (!request.url.startsWith('http')) return;
+
   // Always allow passthrough for non-GET
   if (request.method !== 'GET') return;
 

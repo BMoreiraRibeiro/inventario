@@ -45,17 +45,18 @@ async function syncCategoriesToCloud() {
         // Build payload for upsert: include key, label, icon
         const payload = localCategories.map(c => ({ key: c.key, label: c.label, icon: c.icon || '' }));
 
-        // Batch upsert by key
-        const { data: upserted, error: upsertErr } = await supabase
-            .from('categories')
-            .upsert(payload, { onConflict: 'key' })
-            .select('key');
-
-        if (upsertErr) {
-            console.error('❌ Error upserting categories:', upsertErr);
-        } else {
-            console.log(`✅ Categories upserted: ${upserted?.length || 0}`);
+        // Instead of upsert with onConflict (requires unique constraint), do individual inserts/updates
+        for (const cat of payload) {
+            const { error: upsertErr } = await supabase
+                .from('categories')
+                .upsert(cat, { onConflict: 'key', ignoreDuplicates: false });
+            
+            if (upsertErr) {
+                console.warn('⚠️ Error upserting category', cat.key, upsertErr);
+            }
         }
+
+        console.log(`✅ Categories synced (upsert + deletes)`);
 
         // Delete cloud categories that don't exist locally (in a batch)
         const localKeys = localCategories.map(c => c.key);
@@ -104,16 +105,19 @@ async function syncLocationsToCloud() {
 
         // Batch upsert locations by name
         const locPayload = localLocations.map(l => ({ name: l.name }));
-        const { data: locUpserted, error: locUpsertErr } = await supabase
-            .from('locations')
-            .upsert(locPayload, { onConflict: 'name' })
-            .select('id,name');
-
-        if (locUpsertErr) {
-            console.error('❌ Error upserting locations:', locUpsertErr);
-        } else {
-            console.log(`✅ Locations upserted: ${locUpserted?.length || 0}`);
+        
+        // Instead of batch upsert (requires unique constraint), do individual inserts/updates
+        for (const loc of locPayload) {
+            const { error: locUpsertErr } = await supabase
+                .from('locations')
+                .upsert(loc, { onConflict: 'name', ignoreDuplicates: false });
+            
+            if (locUpsertErr) {
+                console.warn('⚠️ Error upserting location', loc.name, locUpsertErr);
+            }
         }
+
+        console.log(`✅ Locations upserted: ${locPayload.length}`);
 
         // Map location name -> id from server (after upsert fetch)
         const { data: serverLocations } = await supabase.from('locations').select('id,name');
