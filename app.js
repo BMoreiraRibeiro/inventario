@@ -453,7 +453,9 @@ function populateCategorySelects(selected) {
     categories.forEach(cat => {
         const o = document.createElement('option');
         o.value = cat.key;
-        o.textContent = `${cat.icon || ''} ${cat.label}`.trim();
+        const headerText = `${cat.icon || ''} ${cat.label}`.trim();
+        // decorate the category option so it looks like a header but remains clickable
+        o.textContent = `─ ${headerText} ─`;
         filter.appendChild(o);
 
         if (Array.isArray(cat.subs) && cat.subs.length > 0) {
@@ -480,7 +482,8 @@ function populateCategorySelects(selected) {
     categories.forEach(cat => {
         const o = document.createElement('option');
         o.value = cat.key;
-        o.textContent = `${cat.icon || ''} ${cat.label}`.trim();
+        const headerText = `${cat.icon || ''} ${cat.label}`.trim();
+        o.textContent = `─ ${headerText} ─`;
         itemSel.appendChild(o);
 
         if (Array.isArray(cat.subs) && cat.subs.length > 0) {
