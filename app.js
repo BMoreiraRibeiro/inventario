@@ -54,16 +54,8 @@ function closeModalEl(el) {
     }
 }
 
-// Debounce para pedir sync
-window._requestedSyncTimeout = null;
-function requestCloudSync(delay = 400) {
-    try { clearTimeout(window._requestedSyncTimeout); } catch (_) {}
-    window._requestedSyncTimeout = setTimeout(() => {
-        try {
-            if (typeof syncToCloud !== 'undefined' && !isSyncing) syncToCloud();
-        } catch (e) { console.warn('requestCloudSync error', e); }
-    }, delay);
-}
+// Debounce para pedir sync (REMOVIDO - não há mais auto-sync)
+// Sync manual apenas quando necessário
 
 // Helpers
 function slugify(s) {
@@ -127,9 +119,8 @@ function initApp() {
 
     // Supabase
     if (typeof initSupabase !== 'undefined' && initSupabase()) {
-        loadFromCloud().then(() => {
-            setupAutoSync();
-        });
+        loadFromCloud();
+        // Removed auto-sync - sync only happens manually or on save
     }
 }
 
@@ -227,14 +218,7 @@ function loadLocations() {
 }
 function saveLocations() {
     localStorage.setItem('locations', JSON.stringify(locations));
-    if (!window.modalSyncSuppressed) {
-        if (typeof syncLocationsToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => syncLocationsToCloud(), 100);
-        }
-        if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => { try { syncToCloud(); } catch(_){} }, 500);
-        }
-    }
+    // Removed auto-sync
 }
 function populateLocationSelects(selectedParent, selectedChild) {
     const parentSel = document.getElementById('itemLocationParent');
@@ -451,14 +435,7 @@ function loadCategories() {
 }
 function saveCategories() {
     localStorage.setItem('categories', JSON.stringify(categories));
-    if (!window.modalSyncSuppressed) {
-        if (typeof syncCategoriesToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => syncCategoriesToCloud(), 100);
-        }
-        if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => { try { syncToCloud(); } catch(_){} }, 500);
-        }
-    }
+    // Removed auto-sync
 }
 function populateCategorySelects(selected) {
     const filter = document.getElementById('categoryFilter');
@@ -717,14 +694,7 @@ function saveInventory() {
     } catch (e) {
         console.error('❌ [PERSIST] Could not persist inventory to localStorage:', e);
     }
-    if (!window.modalSyncSuppressed) {
-        if (typeof syncInventoryToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => syncInventoryToCloud(), 100);
-        }
-        if (typeof syncToCloud !== 'undefined' && !isSyncing) {
-            setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
-        }
-    }
+    // Removed auto-sync - only manual sync now
 }
 
 /* =======================
@@ -974,28 +944,31 @@ function renderItems() {
             ${item.notes ? `<div class="item-notes">${item.notes}</div>` : ''}
         `;
 
-        // Stock controls (− and +)
+        // Stock display with edit icon (replacing +/- buttons)
         const stockControls = document.createElement('div');
         stockControls.className = 'stock-controls';
+        stockControls.style.cssText = 'display:flex; align-items:center; gap:8px; cursor:pointer; padding:4px 8px; border-radius:4px; transition:background 0.2s;';
+        stockControls.onclick = () => showStockEditModal(item.id);
+        stockControls.onmouseenter = function() { this.style.background = 'rgba(59, 130, 246, 0.1)'; };
+        stockControls.onmouseleave = function() { this.style.background = ''; };
 
-        const decBtn = document.createElement('button');
-        decBtn.className = 'stock-btn minus';
-        decBtn.textContent = '−';
-        decBtn.onclick = () => decrementQuantity(item.id);
-        if (item.quantity === 0) decBtn.disabled = true;
+        const qtyLabel = document.createElement('span');
+        qtyLabel.textContent = 'Stock: ';
+        qtyLabel.style.cssText = 'font-size:13px; color:var(--text-secondary);';
 
         const qtyDisplay = document.createElement('span');
         qtyDisplay.className = 'stock-qty';
         qtyDisplay.textContent = item.quantity;
+        qtyDisplay.style.cssText = 'font-weight:600; font-size:15px; color:var(--primary-color);';
 
-        const incBtn = document.createElement('button');
-        incBtn.className = 'stock-btn plus';
-        incBtn.textContent = '+';
-        incBtn.onclick = () => incrementQuantity(item.id);
+        const editIcon = document.createElement('span');
+        editIcon.textContent = '✏️';
+        editIcon.style.cssText = 'font-size:14px;';
+        editIcon.title = 'Editar stock';
 
-        stockControls.appendChild(decBtn);
+        stockControls.appendChild(qtyLabel);
         stockControls.appendChild(qtyDisplay);
-        stockControls.appendChild(incBtn);
+        stockControls.appendChild(editIcon);
 
         // Item actions (Edit and Delete)
         const itemActions = document.createElement('div');
@@ -1058,21 +1031,119 @@ function editItem(id) {
 
     openModal(modal);
 }
-function incrementQuantity(id) {
-    const it = inventory.find(i => i.id === id);
-    if (!it) return;
-    it.quantity = (parseInt(it.quantity || '0', 10) + 1);
-    saveInventory();
-    renderItems(); updateStats();
+
+/* =======================
+   Modal de Edição de Stock
+   ======================= */
+let currentStockEditId = null;
+
+function showStockEditModal(itemId) {
+    try {
+        console.log('📊 [STOCK] Opening stock edit modal for item:', itemId);
+        const item = inventory.find(i => String(i.id) === String(itemId));
+        if (!item) {
+            console.error('❌ [STOCK] Item not found:', itemId);
+            alert('Erro: Item não encontrado');
+            return;
+        }
+
+        currentStockEditId = itemId;
+        const modal = document.getElementById('stockEditModal');
+        const nameEl = document.getElementById('stockEditItemName');
+        const qtyInput = document.getElementById('stockEditQuantity');
+
+        if (!modal || !nameEl || !qtyInput) {
+            console.error('❌ [STOCK] Modal elements not found');
+            return;
+        }
+
+        nameEl.textContent = item.name;
+        qtyInput.value = item.quantity || 0;
+        
+        openModal(modal);
+        setTimeout(() => qtyInput.focus(), 100);
+        
+        console.log('✅ [STOCK] Modal opened successfully');
+    } catch (error) {
+        console.error('❌ [STOCK] Error opening modal:', error);
+        alert('Erro ao abrir modal de edição de stock');
+    }
 }
-function decrementQuantity(id) {
-    const it = inventory.find(i => i.id === id);
-    if (!it) return;
-    const q = parseInt(it.quantity || '0', 10);
-    it.quantity = Math.max(0, q - 1);
-    saveInventory();
-    renderItems(); updateStats();
+
+function closeStockEditModal() {
+    currentStockEditId = null;
+    closeModalEl(document.getElementById('stockEditModal'));
 }
+
+async function saveStockChange() {
+    try {
+        console.log('💾 [STOCK] Saving stock change for item:', currentStockEditId);
+        
+        if (!currentStockEditId) {
+            console.error('❌ [STOCK] No item selected');
+            return;
+        }
+
+        const qtyInput = document.getElementById('stockEditQuantity');
+        const newQuantity = parseInt(qtyInput.value || '0', 10);
+
+        if (newQuantity < 0) {
+            alert('A quantidade não pode ser negativa');
+            return;
+        }
+
+        // Find item in local inventory
+        const item = inventory.find(i => String(i.id) === String(currentStockEditId));
+        if (!item) {
+            console.error('❌ [STOCK] Item not found in inventory');
+            alert('Erro: Item não encontrado');
+            return;
+        }
+
+        const oldQuantity = item.quantity;
+        item.quantity = newQuantity;
+
+        console.log(`📊 [STOCK] Quantity changed: ${oldQuantity} → ${newQuantity}`);
+
+        // Save to localStorage
+        saveInventory();
+
+        // Save directly to Supabase
+        if (supabase) {
+            console.log('☁️ [STOCK] Syncing to Supabase...');
+            const { data, error } = await supabase
+                .from('inventory_items')
+                .update({ quantity: newQuantity })
+                .eq('id', item.id);
+
+            if (error) {
+                console.error('❌ [STOCK] Supabase update error:', error);
+                alert('Erro ao gravar na base de dados: ' + error.message);
+                // Revert local change
+                item.quantity = oldQuantity;
+                saveInventory();
+                renderItems();
+                updateStats();
+                return;
+            }
+
+            console.log('✅ [STOCK] Successfully saved to Supabase');
+        } else {
+            console.warn('⚠️ [STOCK] Supabase not available - saved locally only');
+        }
+
+        // Update UI
+        renderItems();
+        updateStats();
+        closeStockEditModal();
+
+        console.log('✅ [STOCK] Stock update complete');
+    } catch (error) {
+        console.error('❌ [STOCK] Error saving stock:', error);
+        alert('Erro ao gravar stock: ' + error.message);
+    }
+}
+
 
 /* =======================
    Estatísticas
@@ -1116,7 +1187,8 @@ window.confirmDeleteModal = confirmDeleteModal;
 window.showLowStockModal = showLowStockModal;
 window.closeLowStockModal = closeLowStockModal;
 window.editItem = editItem;
-window.incrementQuantity = incrementQuantity;
-window.decrementQuantity = decrementQuantity;
+window.showStockEditModal = showStockEditModal;
+window.closeStockEditModal = closeStockEditModal;
+window.saveStockChange = saveStockChange;
 window.logout = logout;
 window.login = login;

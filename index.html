@@ -276,6 +276,23 @@
         </div>
     </div>
 
+    <!-- Modal: Edição de Stock -->
+    <div id="stockEditModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeStockEditModal()">&times;</span>
+            <h2>✏️ Editar Stock</h2>
+            <p id="stockEditItemName" style="font-weight:600; margin:12px 0; color:var(--primary-color);"></p>
+            <div class="form-group">
+                <label for="stockEditQuantity">Quantidade:</label>
+                <input type="number" id="stockEditQuantity" min="0" step="1" required>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" onclick="closeStockEditModal()">Cancelar</button>
+                <button type="button" class="btn-primary" onclick="saveStockChange()">💾 Gravar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Gestor de Locais e Sub-Locais -->
     <div id="locationManagerModal" class="modal">
         <div class="modal-content">
