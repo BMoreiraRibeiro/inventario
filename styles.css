@@ -171,6 +171,31 @@ header h1 {
 .header-stat.clickable:hover { background: var(--hover-bg); }
 .header-stat.clickable:active { background: var(--border-color); }
 
+.sync-btn {
+    padding: 8px 12px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.3s;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sync-btn:hover {
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+}
+
+.sync-btn:active {
+    transform: rotate(180deg);
+}
+
 .logout-btn {
     padding: 8px 16px;
     background: var(--danger-color);

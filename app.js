@@ -72,6 +72,15 @@ function initApp() {
     // Render items right away
     renderItems();
     updateStats();
+    
+    // Initialize Supabase and sync
+    if (typeof initSupabase !== 'undefined' && initSupabase()) {
+        // Load from cloud on first load
+        loadFromCloud().then(() => {
+            // Setup auto-sync after initial load
+            setupAutoSync();
+        });
+    }
 }
 
 if (document.readyState === 'loading') {
@@ -201,6 +210,10 @@ function loadLocations() {
 
 function saveLocations() {
     localStorage.setItem('locations', JSON.stringify(locations));
+    // Trigger cloud sync if available
+    if (typeof syncLocationsToCloud !== 'undefined' && !isSyncing) {
+        setTimeout(() => syncLocationsToCloud(), 100);
+    }
 }
 
 function populateLocationSelects(selectedParent, selectedChild) {
@@ -436,6 +449,10 @@ function defaultCategoryMap() {
 
 function saveCategories() {
     localStorage.setItem('categories', JSON.stringify(categories));
+    // Trigger cloud sync if available
+    if (typeof syncCategoriesToCloud !== 'undefined' && !isSyncing) {
+        setTimeout(() => syncCategoriesToCloud(), 100);
+    }
 }
 
 function populateCategorySelects(selected) {
@@ -1081,6 +1098,10 @@ function loadInventory() {
 
 function saveInventory() {
     localStorage.setItem('inventory', JSON.stringify(inventory));
+    // Trigger cloud sync if available
+    if (typeof syncInventoryToCloud !== 'undefined' && !isSyncing) {
+        setTimeout(() => syncInventoryToCloud(), 100);
+    }
 }
 
 // Funções de Modal
