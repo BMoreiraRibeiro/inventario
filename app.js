@@ -449,25 +449,20 @@ function populateCategorySelects(selected) {
     optAll.value = 'all';
     optAll.textContent = 'Todas as Categorias';
     filter.appendChild(optAll);
-    // populate categories and their subcategories in the same dropdown using <optgroup>
+    // populate categories and their subcategories as clickable options (indented subs)
     categories.forEach(cat => {
-        // top-level category option
         const o = document.createElement('option');
         o.value = cat.key;
         o.textContent = `${cat.icon || ''} ${cat.label}`.trim();
         filter.appendChild(o);
 
-        // subcategories grouped under the category. in the main filter we show only the sub name
         if (Array.isArray(cat.subs) && cat.subs.length > 0) {
-            const g = document.createElement('optgroup');
-            g.label = `${cat.icon || ''} ${cat.label}`.trim();
             cat.subs.forEach(sub => {
                 const s = document.createElement('option');
                 s.value = `${cat.key}||${sub}`;
-                s.textContent = sub; // show only subcategory name in the main filter
-                g.appendChild(s);
+                s.textContent = `  └ ${sub}`; // keep indentation but only show sub name
+                filter.appendChild(s);
             });
-            filter.appendChild(g);
         }
     });
     if (selected && selected !== 'filter') {
@@ -481,7 +476,7 @@ function populateCategorySelects(selected) {
     empty.value = '';
     empty.textContent = 'Selecione...';
     itemSel.appendChild(empty);
-    // For item select: keep a plain category option, then an optgroup with subs (sub options show only sub name)
+    // For item select: category options and indented subcategory options (all clickable)
     categories.forEach(cat => {
         const o = document.createElement('option');
         o.value = cat.key;
@@ -489,15 +484,12 @@ function populateCategorySelects(selected) {
         itemSel.appendChild(o);
 
         if (Array.isArray(cat.subs) && cat.subs.length > 0) {
-            const g = document.createElement('optgroup');
-            g.label = `${cat.icon || ''} ${cat.label}`.trim();
             cat.subs.forEach(sub => {
                 const s = document.createElement('option');
                 s.value = `${cat.key}||${sub}`;
-                s.textContent = sub;
-                g.appendChild(s);
+                s.textContent = `  └ ${sub}`;
+                itemSel.appendChild(s);
             });
-            itemSel.appendChild(g);
         }
     });
     if (selected && selected !== 'filter') itemSel.value = selected;
