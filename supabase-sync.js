@@ -40,26 +40,40 @@ async function syncCategoriesToCloud() {
             .select('*');
         
         if (fetchError) throw fetchError;
-        
-        // Merge logic: local wins for now (simple approach)
+        console.log(`☁️ Cloud categories count: ${cloudCategories?.length || 0}`);
+
+        // Delete cloud categories that don't exist locally
+        const localKeys = localCategories.map(c => c.key);
+        const toDelete = (cloudCategories || []).filter(cc => !localKeys.includes(cc.key));
+        if (toDelete.length > 0) {
+            console.log(`🗑️ Deleting ${toDelete.length} categories from cloud`);
+            for (const c of toDelete) {
+                const { error: delErr } = await supabase
+                    .from('categories')
+                    .delete()
+                    .eq('key', c.key);
+                if (delErr) console.error('❌ Error deleting category:', delErr);
+            }
+        }
+
+        // Upsert local categories (simple insert/update loop for clarity)
         for (const cat of localCategories) {
-            const exists = cloudCategories?.find(c => c.key === cat.key);
-            
+            const exists = (await supabase.from('categories').select('*').eq('key', cat.key)).data?.[0];
             if (exists) {
-                // Update
-                await supabase
+                const { error: uErr } = await supabase
                     .from('categories')
                     .update({ label: cat.label, icon: cat.icon })
                     .eq('key', cat.key);
+                if (uErr) console.error('❌ Error updating category:', uErr);
             } else {
-                // Insert
-                await supabase
+                const { error: iErr } = await supabase
                     .from('categories')
                     .insert({ key: cat.key, label: cat.label, icon: cat.icon });
+                if (iErr) console.error('❌ Error inserting category:', iErr);
             }
         }
-        
-        console.log('✅ Categories synced');
+
+        console.log('✅ Categories synced (upsert + deletes)');
     } catch (error) {
         console.error('❌ Sync categories error:', error);
     }
@@ -77,58 +91,71 @@ async function syncLocationsToCloud() {
             .select('*, sublocations(*)');
         
         if (fetchError) throw fetchError;
-        
+        console.log(`☁️ Cloud locations count: ${cloudLocations?.length || 0}`);
+
+        // Delete cloud locations that don't exist locally
+        const localNames = localLocations.map(l => l.name);
+        const toDelete = (cloudLocations || []).filter(cl => !localNames.includes(cl.name));
+        if (toDelete.length > 0) {
+            console.log(`🗑️ Deleting ${toDelete.length} locations from cloud`);
+            for (const l of toDelete) {
+                const { error: delErr } = await supabase
+                    .from('locations')
+                    .delete()
+                    .eq('name', l.name);
+                if (delErr) console.error('❌ Error deleting location:', delErr);
+            }
+        }
+
         for (const loc of localLocations) {
-            const exists = cloudLocations?.find(l => l.name === loc.name);
-            
+            const exists = (await supabase.from('locations').select('*').eq('name', loc.name)).data?.[0];
             if (exists) {
-                // Update location
-                const { data: locationData } = await supabase
+                // Update location (name likely unchanged)
+                const { data: locationData, error: updErr } = await supabase
                     .from('locations')
                     .update({ name: loc.name })
                     .eq('name', loc.name)
                     .select()
                     .single();
-                
-                // Sync sublocations
+
+                if (updErr) console.error('❌ Error updating location:', updErr);
+
                 if (locationData) {
-                    // Delete old sublocations
-                    await supabase
+                    // Replace sublocations: delete old and insert new ones
+                    const { error: delSubsErr } = await supabase
                         .from('sublocations')
                         .delete()
                         .eq('location_id', locationData.id);
-                    
-                    // Insert new sublocations
+                    if (delSubsErr) console.error('❌ Error deleting sublocations:', delSubsErr);
+
                     if (loc.subs && loc.subs.length > 0) {
-                        await supabase
+                        const { error: insSubsErr } = await supabase
                             .from('sublocations')
-                            .insert(loc.subs.map(sub => ({
-                                location_id: locationData.id,
-                                name: sub
-                            })));
+                            .insert(loc.subs.map(sub => ({ location_id: locationData.id, name: sub })));
+                        if (insSubsErr) console.error('❌ Error inserting sublocations:', insSubsErr);
                     }
                 }
             } else {
-                // Insert location
-                const { data: newLocation } = await supabase
+                // Insert location and its sublocations
+                const { data: newLocation, error: insErr } = await supabase
                     .from('locations')
                     .insert({ name: loc.name })
                     .select()
                     .single();
-                
-                // Insert sublocations
+                if (insErr) {
+                    console.error('❌ Error inserting location:', insErr);
+                    continue;
+                }
                 if (newLocation && loc.subs && loc.subs.length > 0) {
-                    await supabase
+                    const { error: insSubsErr } = await supabase
                         .from('sublocations')
-                        .insert(loc.subs.map(sub => ({
-                            location_id: newLocation.id,
-                            name: sub
-                        })));
+                        .insert(loc.subs.map(sub => ({ location_id: newLocation.id, name: sub })));
+                    if (insSubsErr) console.error('❌ Error inserting sublocations:', insSubsErr);
                 }
             }
         }
-        
-        console.log('✅ Locations synced');
+
+        console.log('✅ Locations synced (upsert + deletes)');
     } catch (error) {
         console.error('❌ Sync locations error:', error);
     }
