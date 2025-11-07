@@ -414,21 +414,22 @@ function loadCategories() {
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
+            // Normalize older formats: strings, or objects without subs
             if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
                 const map = defaultCategoryMap();
-                categories = parsed.map(k => ({ key: k, label: (map[k] && map[k].label) ? map[k].label : k, icon: (map[k] && map[k].icon) ? map[k].icon : '' }));
+                categories = parsed.map(k => ({ key: k, label: (map[k] && map[k].label) ? map[k].label : k, icon: (map[k] && map[k].icon) ? map[k].icon : '', subs: [] }));
             } else {
-                categories = parsed;
+                categories = parsed.map(c => ({ key: c.key, label: c.label, icon: c.icon || '', subs: c.subs || [] }));
             }
         } catch (_) { categories = []; }
     } else {
         categories = [
-            { key: 'ferramentas', label: 'Ferramentas', icon: '🔨' },
-            { key: 'eletrico', label: 'Material Elétrico', icon: '⚡' },
-            { key: 'eletronico', label: 'Componentes Eletrônicos', icon: '🔌' },
-            { key: 'placas', label: 'Placas e Arduinos', icon: '🖥️' },
-            { key: 'ferragens', label: 'Ferragens', icon: '🔩' },
-            { key: 'outros', label: 'Outros', icon: '📦' }
+            { key: 'ferramentas', label: 'Ferramentas', icon: '🔨', subs: [] },
+            { key: 'eletrico', label: 'Material Elétrico', icon: '⚡', subs: [] },
+            { key: 'eletronico', label: 'Componentes Eletrônicos', icon: '🔌', subs: [] },
+            { key: 'placas', label: 'Placas e Arduinos', icon: '🖥️', subs: [] },
+            { key: 'ferragens', label: 'Ferragens', icon: '🔩', subs: [] },
+            { key: 'outros', label: 'Outros', icon: '📦', subs: [] }
         ];
         saveCategories();
     }
@@ -469,7 +470,50 @@ function populateCategorySelects(selected) {
         itemSel.appendChild(o);
     });
     if (selected && selected !== 'filter') itemSel.value = selected;
+
+    // Prepare itemSubcategory select if present
+    const itemSubSel = document.getElementById('itemSubcategory');
+    if (itemSubSel) {
+        itemSubSel.innerHTML = '';
+        const opt = document.createElement('option'); opt.value = ''; opt.textContent = '— Nenhuma —'; itemSubSel.appendChild(opt);
+        // if a category is preselected, populate its subs
+        const selCat = categories.find(c => c.key === (selected && selected !== 'filter' ? selected : itemSel.value));
+        if (selCat && Array.isArray(selCat.subs) && selCat.subs.length > 0) {
+            selCat.subs.forEach(s => {
+                const o = document.createElement('option'); o.value = s; o.textContent = s; itemSubSel.appendChild(o);
+            });
+            itemSubSel.style.display = 'inline-block';
+        } else {
+            itemSubSel.style.display = 'none';
+        }
+    }
 }
+
+// When category changes in item modal, populate subcategories select
+function addCategoryChangeHandler() {
+    document.addEventListener('change', function(e) {
+        if (!e.target) return;
+        if (e.target.id === 'itemCategory') {
+            const sel = e.target.value;
+            const subSel = document.getElementById('itemSubcategory');
+            if (!subSel) return;
+            const cat = categories.find(c => c.key === sel);
+            if (!cat || !Array.isArray(cat.subs) || cat.subs.length === 0) {
+                subSel.style.display = 'none';
+                subSel.innerHTML = '';
+                return;
+            }
+            subSel.style.display = 'inline-block';
+            subSel.innerHTML = '';
+            const empty = document.createElement('option'); empty.value = ''; empty.textContent = '— Nenhuma —'; subSel.appendChild(empty);
+            cat.subs.forEach(s => {
+                const o = document.createElement('option'); o.value = s; o.textContent = s; subSel.appendChild(o);
+            });
+        }
+    });
+}
+// register handler once
+addCategoryChangeHandler();
 
 // Modal de criar categoria
 function showAddCategoryModal() {
@@ -498,12 +542,32 @@ function submitCategoryForm(event) {
         if (errEl) { errEl.textContent = 'Categoria já existe'; errEl.style.display = 'block'; }
         return;
     }
-    const newCat = { key, label: name, icon: icon || '' };
+    const newCat = { key, label: name, icon: icon || '', subs: [] };
     categories.push(newCat);
     saveCategories();
     populateCategorySelects(newCat.key);
     populateCategoryManager();
     closeCategoryModal();
+}
+
+// Add subcategory from item modal (button next to subcategory select)
+function addSubcategoryToSelectedCategory() {
+    const catSel = document.getElementById('itemCategory');
+    if (!catSel) return alert('Escolha primeiro uma categoria');
+    const catKey = catSel.value;
+    if (!catKey) return alert('Escolha primeiro uma categoria');
+    const name = prompt('Nome da nova subcategoria para ' + catKey + ':');
+    if (!name) return;
+    const cat = categories.find(c => c.key === catKey);
+    if (!cat) return alert('Categoria não encontrada');
+    cat.subs = cat.subs || [];
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (cat.subs.includes(trimmed)) return alert('Subcategoria já existe');
+    cat.subs.push(trimmed);
+    saveCategories();
+    populateCategorySelects(catKey);
+    alert('Subcategoria adicionada');
 }
 
 // Gestor de categorias
@@ -520,22 +584,71 @@ function populateCategoryManager() {
     list.innerHTML = '';
     categories.forEach(cat => {
         const row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.justifyContent = 'space-between';
-        row.style.alignItems = 'center';
+        row.style.borderBottom = '1px solid var(--border-color)';
         row.style.padding = '8px 0';
-        row.innerHTML = `<div><strong>${cat.icon || ''} ${cat.label}</strong> <span style="color:var(--text-secondary); font-size:12px; margin-left:8px;">(${cat.key})</span></div>`;
-        const actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '8px';
+
+        const header = document.createElement('div');
+        header.style.display = 'flex'; header.style.justifyContent = 'space-between'; header.style.alignItems = 'center';
+        header.innerHTML = `<div><strong>${cat.icon || ''} ${cat.label}</strong> <span style="color:var(--text-secondary); font-size:12px; margin-left:8px;">(${cat.key})</span></div>`;
+
+        const actions = document.createElement('div'); actions.style.display = 'flex'; actions.style.gap = '8px';
         const editBtn = document.createElement('button'); editBtn.className = 'btn-primary'; editBtn.textContent = 'Editar';
+        const addSubBtn = document.createElement('button'); addSubBtn.className = 'btn-secondary'; addSubBtn.textContent = '+ Sub';
         const delBtn = document.createElement('button'); delBtn.className = 'btn-delete'; delBtn.textContent = 'Eliminar';
+
         editBtn.onclick = () => editCategoryInline(cat.key);
+        addSubBtn.onclick = () => addSubcategoryInline(cat.key);
         delBtn.onclick = () => showDeleteModal({ type: 'category', key: cat.key });
-        actions.appendChild(editBtn); actions.appendChild(delBtn);
-        row.appendChild(actions);
+
+        actions.appendChild(editBtn);
+        actions.appendChild(addSubBtn);
+        actions.appendChild(delBtn);
+        header.appendChild(actions);
+        row.appendChild(header);
+
+        // Show subcategories under the category
+        const subsDiv = document.createElement('div');
+        subsDiv.style.marginLeft = '12px'; subsDiv.style.marginTop = '8px';
+        if (Array.isArray(cat.subs) && cat.subs.length > 0) {
+            cat.subs.forEach(sub => {
+                const subRow = document.createElement('div');
+                subRow.style.display = 'flex'; subRow.style.justifyContent = 'space-between'; subRow.style.alignItems = 'center'; subRow.style.padding = '4px 0';
+                const left = document.createElement('div'); left.textContent = sub;
+                const right = document.createElement('div');
+                const delSub = document.createElement('button'); delSub.className = 'btn-delete'; delSub.textContent = 'Eliminar';
+                delSub.onclick = () => removeSubcategory(cat.key, sub);
+                right.appendChild(delSub);
+                subRow.appendChild(left); subRow.appendChild(right);
+                subsDiv.appendChild(subRow);
+            });
+        } else {
+            const none = document.createElement('div'); none.style.color = 'var(--text-secondary)'; none.style.fontSize = '13px'; none.textContent = 'Sem subcategorias';
+            subsDiv.appendChild(none);
+        }
+        row.appendChild(subsDiv);
+
         list.appendChild(row);
     });
+}
+
+function addSubcategoryInline(categoryKey) {
+    const name = prompt('Nome da nova subcategoria para ' + categoryKey + ':');
+    if (!name) return;
+    const cat = categories.find(c => c.key === categoryKey);
+    if (!cat) { alert('Categoria não encontrada'); return; }
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    cat.subs = cat.subs || [];
+    if (cat.subs.includes(trimmed)) { alert('Subcategoria já existe'); return; }
+    cat.subs.push(trimmed);
+    saveCategories(); populateCategoryManager(); populateCategorySelects();
+}
+
+function removeSubcategory(categoryKey, subName) {
+    const cat = categories.find(c => c.key === categoryKey);
+    if (!cat) return;
+    cat.subs = (cat.subs || []).filter(s => s !== subName);
+    saveCategories(); populateCategoryManager(); populateCategorySelects();
 }
 function editCategoryInline(key) {
     const list = document.getElementById('categoryManagerList');
@@ -723,6 +836,7 @@ function saveItem(event) {
     const quantity = parseInt(document.getElementById('itemQuantity').value || '0', 10);
     const minStock = parseInt(document.getElementById('itemMinStock').value || '0', 10);
     const category = document.getElementById('itemCategory').value;
+    const subcategory = document.getElementById('itemSubcategory') ? document.getElementById('itemSubcategory').value : '';
     const locationParent = document.getElementById('itemLocationParent').value || '';
     const locationChild = document.getElementById('itemLocationChild').value || '';
     const notes = document.getElementById('itemNotes').value.trim();
@@ -736,11 +850,11 @@ function saveItem(event) {
     if (currentEditId) {
         const idx = inventory.findIndex(i => i.id === currentEditId);
         if (idx !== -1) {
-            inventory[idx] = { ...inventory[idx], name, quantity, minStock, category, locationParent, locationChild, notes };
+            inventory[idx] = { ...inventory[idx], name, quantity, minStock, category, subcategory, locationParent, locationChild, notes };
         }
     } else {
         const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'local-' + Date.now() + '-' + Math.floor(Math.random()*100000);
-        inventory.push({ id, name, quantity, minStock, category, locationParent, locationChild, notes, createdAt: Date.now() });
+        inventory.push({ id, name, quantity, minStock, category, subcategory, locationParent, locationChild, notes, createdAt: Date.now() });
     }
 
     saveInventory();
@@ -1028,6 +1142,11 @@ function editItem(id) {
     populateCategorySelects(item.category || '');
     populateLocationSelects(item.locationParent || '', item.locationChild || '');
     document.getElementById('itemNotes').value = item.notes || '';
+    // set subcategory if present
+    const subSel = document.getElementById('itemSubcategory');
+    if (subSel) {
+        try { subSel.value = item.subcategory || ''; } catch(_) { /* ignore */ }
+    }
 
     openModal(modal);
 }

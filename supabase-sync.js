@@ -42,8 +42,8 @@ async function syncCategoriesToCloud() {
         if (fetchError) throw fetchError;
         console.log(`☁️ Cloud categories count: ${cloudCategories?.length || 0}`);
 
-        // Build payload for upsert: include key, label, icon
-        const payload = localCategories.map(c => ({ key: c.key, label: c.label, icon: c.icon || '' }));
+    // Build payload for upsert: include key, label, icon and subs (as json)
+    const payload = localCategories.map(c => ({ key: c.key, label: c.label, icon: c.icon || '', subs: c.subs || [] }));
 
         // Batch upsert by key (now that UNIQUE constraint exists)
         const { data: upserted, error: upsertErr } = await supabase
