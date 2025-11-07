@@ -5,14 +5,20 @@ let lastSyncTime = null;
 
 // Initialize Supabase client
 function initSupabase() {
-    if (typeof supabase === 'undefined' || !CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) {
-        console.warn('Supabase not configured');
+    if (typeof window.supabase === 'undefined') {
+        console.error('❌ Supabase library not loaded');
+        return false;
+    }
+    
+    if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) {
+        console.warn('⚠️ Supabase credentials not configured in config.js');
         return false;
     }
     
     try {
         supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-        console.log('✅ Supabase initialized');
+        console.log('✅ Supabase initialized successfully');
+        console.log('URL:', CONFIG.SUPABASE_URL);
         return true;
     } catch (error) {
         console.error('❌ Supabase init error:', error);
@@ -130,38 +136,55 @@ async function syncLocationsToCloud() {
 
 // Sync inventory items to Supabase
 async function syncInventoryToCloud() {
-    if (!supabase) return;
+    if (!supabase) {
+        console.warn('⚠️ Supabase not initialized, skipping inventory sync');
+        return;
+    }
     
     try {
+        console.log('🔄 Syncing inventory to cloud...');
         const localItems = inventory;
+        console.log(`📦 Local items count: ${localItems.length}`);
         
         const { data: cloudItems, error: fetchError } = await supabase
             .from('inventory_items')
             .select('*');
         
-        if (fetchError) throw fetchError;
+        if (fetchError) {
+            console.error('❌ Error fetching cloud items:', fetchError);
+            throw fetchError;
+        }
+        
+        console.log(`☁️ Cloud items count: ${cloudItems?.length || 0}`);
         
         // Delete items that don't exist locally (removed items)
         const localIds = localItems.map(i => String(i.id));
         const cloudItemsToDelete = cloudItems?.filter(ci => !localIds.includes(String(ci.id))) || [];
         
-        for (const item of cloudItemsToDelete) {
-            await supabase
-                .from('inventory_items')
-                .delete()
-                .eq('id', item.id);
+        if (cloudItemsToDelete.length > 0) {
+            console.log(`🗑️ Deleting ${cloudItemsToDelete.length} items from cloud`);
+            for (const item of cloudItemsToDelete) {
+                const { error: delError } = await supabase
+                    .from('inventory_items')
+                    .delete()
+                    .eq('id', item.id);
+                if (delError) console.error('Delete error:', delError);
+            }
         }
         
         // Upsert local items
+        let insertedCount = 0;
+        let updatedCount = 0;
+        
         for (const item of localItems) {
             const cloudItem = cloudItems?.find(ci => String(ci.id) === String(item.id));
             
             const itemData = {
-                id: item.id,
+                id: String(item.id),
                 name: item.name,
-                category_key: item.category,
-                quantity: item.quantity,
-                min_stock: item.minStock,
+                category_key: item.category || '',
+                quantity: item.quantity || 0,
+                min_stock: item.minStock || 0,
                 location_parent: item.locationParent || '',
                 location_child: item.locationChild || '',
                 notes: item.notes || ''
@@ -169,21 +192,34 @@ async function syncInventoryToCloud() {
             
             if (cloudItem) {
                 // Update
-                await supabase
+                const { error: updateError } = await supabase
                     .from('inventory_items')
                     .update(itemData)
-                    .eq('id', item.id);
+                    .eq('id', String(item.id));
+                
+                if (updateError) {
+                    console.error(`❌ Error updating item ${item.name}:`, updateError);
+                } else {
+                    updatedCount++;
+                }
             } else {
                 // Insert
-                await supabase
+                const { error: insertError } = await supabase
                     .from('inventory_items')
-                    .insert(itemData);
+                    .insert([itemData]);
+                
+                if (insertError) {
+                    console.error(`❌ Error inserting item ${item.name}:`, insertError);
+                } else {
+                    insertedCount++;
+                }
             }
         }
         
-        console.log('✅ Inventory synced');
+        console.log(`✅ Inventory synced - Inserted: ${insertedCount}, Updated: ${updatedCount}`);
     } catch (error) {
         console.error('❌ Sync inventory error:', error);
+        throw error;
     }
 }
 
