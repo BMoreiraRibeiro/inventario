@@ -645,9 +645,10 @@ option { white-space: normal; }
 
 .modal.active {
     display: flex;
-    align-items: center;
+    /* use flex-start so tall modals don't get centered and overflow the top of the viewport */
+    align-items: flex-start;
     justify-content: center;
-    padding: 20px;
+    padding: 20px 10px;
 }
 
 .modal-content {
@@ -659,6 +660,10 @@ option { white-space: normal; }
     position: relative;
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border-color);
+    box-sizing: border-box;
+    /* Ensure modal content never exceeds the viewport height; allow internal scrolling */
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
 }
 
 .close {
