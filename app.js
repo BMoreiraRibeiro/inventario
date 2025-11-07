@@ -528,6 +528,35 @@ function saveCategories() {
     }
 }
 
+// Inventory persistence: load and save local inventory to localStorage
+function loadInventory() {
+    const saved = localStorage.getItem('inventory');
+    if (saved) {
+        try { inventory = JSON.parse(saved); } catch (e) { inventory = []; }
+    } else {
+        inventory = [];
+        saveInventory();
+    }
+}
+
+function saveInventory() {
+    try {
+        localStorage.setItem('inventory', JSON.stringify(inventory));
+    } catch (e) {
+        console.warn('⚠️ Could not persist inventory to localStorage', e);
+    }
+
+    // Trigger cloud sync if available (skip when modalSyncSuppressed is true)
+    if (!window.modalSyncSuppressed) {
+        if (typeof syncInventoryToCloud !== 'undefined' && !isSyncing) {
+            setTimeout(() => syncInventoryToCloud(), 100);
+        }
+        if (typeof syncToCloud !== 'undefined' && !isSyncing) {
+            setTimeout(() => { try { syncToCloud(); } catch(e){} }, 500);
+        }
+    }
+}
+
 function populateCategorySelects(selected) {
     const filter = document.getElementById('categoryFilter');
     const itemSel = document.getElementById('itemCategory');
