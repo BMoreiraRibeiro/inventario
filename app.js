@@ -692,10 +692,15 @@ function addSubcategoryInline(categoryKey) {
         container.appendChild(saveBtn);
         container.appendChild(cancelBtn);
 
-        // insert before the subs div if present, otherwise append
-        const subsDiv = row.querySelector('div:nth-of-type(2)');
-        if (subsDiv) row.insertBefore(container, subsDiv);
-        else row.appendChild(container);
+        // insert after the header (first child) and before subsDiv
+        // row structure: header (first child) + subsDiv (second child)
+        const children = Array.from(row.children);
+        const subsDiv = children.find(el => el.style.marginLeft === '12px'); // subsDiv has marginLeft 12px
+        if (subsDiv && subsDiv.parentNode === row) {
+            row.insertBefore(container, subsDiv);
+        } else {
+            row.appendChild(container);
+        }
 
         cancelBtn.onclick = () => container.remove();
 
