@@ -198,9 +198,9 @@ function loadLocations() {
 }
 function saveLocations() {
     localStorage.setItem('locations', JSON.stringify(locations));
-    // Sincronizar com Gist (debounced)
-    if (window.gistSync && window.gistSync.isConfigured()) {
-        window.gistSync.debouncedSync();
+    // Sincronizar com Firebase (debounced)
+    if (window.firebaseSync && window.firebaseSync.isConfigured()) {
+        window.firebaseSync.debouncedSync();
     }
 }
 function populateLocationSelects(selectedParent, selectedChild) {
@@ -419,9 +419,9 @@ function loadCategories() {
 }
 function saveCategories() {
     localStorage.setItem('categories', JSON.stringify(categories));
-    // Sincronizar com Gist (debounced)
-    if (window.gistSync && window.gistSync.isConfigured()) {
-        window.gistSync.debouncedSync();
+    // Sincronizar com Firebase (debounced)
+    if (window.firebaseSync && window.firebaseSync.isConfigured()) {
+        window.firebaseSync.debouncedSync();
     }
 }
 function populateCategorySelects(selected) {
@@ -925,9 +925,9 @@ function loadInventory() {
 function saveInventory() {
     try {
         localStorage.setItem('inventory', JSON.stringify(inventory));
-        // Sincronizar com Gist (debounced)
-        if (window.gistSync && window.gistSync.isConfigured()) {
-            window.gistSync.debouncedSync();
+        // Sincronizar com Firebase (debounced)
+        if (window.firebaseSync && window.firebaseSync.isConfigured()) {
+            window.firebaseSync.debouncedSync();
         }
     } catch (e) {
         console.error('❌ [PERSIST] Could not persist inventory to localStorage:', e);
@@ -1558,3 +1558,644 @@ window.logout = logout;
 window.login = login;
 window.exportData = exportData;
 window.importData = importData;
+
+/* =======================
+   Settings Modal
+   ======================= */
+let confirmDeleteCallback = null;
+
+function showSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    openModal(modal);
+    switchSettingsTab('import-export');
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('settingsModal');
+    closeModalEl(modal);
+}
+
+function switchSettingsTab(tabName) {
+    // Update tab buttons
+    const tabs = document.querySelectorAll('.settings-tab');
+    tabs.forEach(tab => tab.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Update tab content
+    const contents = document.querySelectorAll('.settings-tab-content');
+    contents.forEach(content => content.style.display = 'none');
+    
+    const activeContent = document.getElementById(`tab-${tabName}`);
+    if (activeContent) {
+        activeContent.style.display = 'block';
+        
+        // Load content based on tab
+        if (tabName === 'locations') {
+            renderLocationSettings();
+        } else if (tabName === 'categories') {
+            renderCategorySettings();
+        }
+    }
+}
+
+function renderLocationSettings() {
+    const list = document.getElementById('locationSettingsList');
+    if (!list) return;
+    
+    list.innerHTML = ''; // Clear first
+    
+    if (locations.length === 0) {
+        list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:20px;">Nenhum local cadastrado</p>';
+        return;
+    }
+    
+    locations.forEach(loc => {
+        const itemCount = inventory.filter(item => 
+            item.locationParent === loc.name || 
+            (item.locationParent === loc.name && loc.subs && loc.subs.includes(item.locationChild))
+        ).length;
+        
+        const settingItem = document.createElement('div');
+        settingItem.className = 'setting-item';
+        settingItem.style.cssText = 'padding:12px; margin-bottom:8px; background:var(--input-bg); border-radius:6px; border:1px solid var(--border-color);';
+        
+        const flexContainer = document.createElement('div');
+        flexContainer.style.cssText = 'display:flex; justify-content:space-between; align-items:start;';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.style.flex = '1';
+        
+        // Title
+        const title = document.createElement('strong');
+        title.textContent = loc.name || 'Local sem nome';
+        contentDiv.appendChild(title);
+        
+        // Item count
+        const countDiv = document.createElement('div');
+        countDiv.style.cssText = 'margin-top:4px; font-size:12px; color:var(--text-secondary);';
+        countDiv.textContent = `${itemCount} ${itemCount === 1 ? 'item' : 'itens'}`;
+        contentDiv.appendChild(countDiv);
+        
+        // Sub-locations
+        if (loc.subs && loc.subs.length > 0) {
+            const subDiv = document.createElement('div');
+            subDiv.style.cssText = 'margin-top:6px; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;';
+            
+            const subTitle = document.createElement('div');
+            subTitle.style.cssText = 'font-size:11px; color:var(--text-secondary); margin-bottom:4px;';
+            subTitle.textContent = 'Sub-locais:';
+            subDiv.appendChild(subTitle);
+            
+            loc.subs.forEach(subName => {
+                const childItemCount = inventory.filter(item => 
+                    item.locationParent === loc.name && item.locationChild === subName
+                ).length;
+                const childRow = document.createElement('div');
+                childRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:4px 0;';
+                
+                const childNameSpan = document.createElement('span');
+                childNameSpan.style.fontSize = '12px';
+                childNameSpan.textContent = `→ ${subName}`;
+                childRow.appendChild(childNameSpan);
+                
+                const childActions = document.createElement('div');
+                childActions.style.cssText = 'display:flex; gap:8px; align-items:center;';
+                
+                const childCount = document.createElement('span');
+                childCount.style.cssText = 'font-size:11px; color:var(--text-secondary);';
+                childCount.textContent = `${childItemCount} ${childItemCount === 1 ? 'item' : 'itens'}`;
+                childActions.appendChild(childCount);
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.style.cssText = 'padding:2px 6px; font-size:11px; background:var(--danger-color); color:white; border:none; border-radius:3px; cursor:pointer;';
+                deleteBtn.textContent = '×';
+                deleteBtn.onclick = () => confirmDeleteSubLocation(loc.name, subName);
+                childActions.appendChild(deleteBtn);
+                
+                childRow.appendChild(childActions);
+                subDiv.appendChild(childRow);
+            });
+            
+            contentDiv.appendChild(subDiv);
+        }
+        
+        // Add sub-location button
+        const addSubBtn = document.createElement('button');
+        addSubBtn.className = 'btn-secondary';
+        addSubBtn.style.cssText = 'padding:4px 8px; font-size:11px; margin-top:8px;';
+        addSubBtn.textContent = '+ Adicionar Sub-local';
+        addSubBtn.onclick = () => showAddSubLocationInline(loc.name);
+        contentDiv.appendChild(addSubBtn);
+        
+        // Container for inline add
+        const inlineContainer = document.createElement('div');
+        inlineContainer.id = `sublocation-inline-${loc.name.replace(/\s+/g, '_')}`;
+        inlineContainer.style.marginTop = '8px';
+        contentDiv.appendChild(inlineContainer);
+        
+        flexContainer.appendChild(contentDiv);
+        
+        // Delete location button
+        const deleteLocBtn = document.createElement('button');
+        deleteLocBtn.className = 'btn-danger';
+        deleteLocBtn.style.cssText = 'padding:6px 12px; font-size:12px; margin-left:12px;';
+        deleteLocBtn.textContent = '🗑️ Eliminar';
+        deleteLocBtn.onclick = () => confirmDeleteLocation(loc.name);
+        flexContainer.appendChild(deleteLocBtn);
+        
+        settingItem.appendChild(flexContainer);
+        list.appendChild(settingItem);
+    });
+}
+
+function renderCategorySettings() {
+    const list = document.getElementById('categorySettingsList');
+    if (!list) return;
+    
+    list.innerHTML = ''; // Clear first
+    
+    if (categories.length === 0) {
+        list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:20px;">Nenhuma categoria cadastrada</p>';
+        return;
+    }
+    
+    categories.forEach(cat => {
+        const itemCount = inventory.filter(item => 
+            item.category === cat.key || (cat.subs && cat.subs.includes(item.subcategory))
+        ).length;
+        
+        const settingItem = document.createElement('div');
+        settingItem.className = 'setting-item';
+        settingItem.style.cssText = 'padding:12px; margin-bottom:8px; background:var(--input-bg); border-radius:6px; border:1px solid var(--border-color);';
+        
+        const flexContainer = document.createElement('div');
+        flexContainer.style.cssText = 'display:flex; justify-content:space-between; align-items:start;';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.style.flex = '1';
+        
+        // Title
+        const title = document.createElement('strong');
+        title.textContent = (cat.icon ? cat.icon + ' ' : '') + (cat.label || 'Categoria sem nome');
+        contentDiv.appendChild(title);
+        
+        // Item count
+        const countDiv = document.createElement('div');
+        countDiv.style.cssText = 'margin-top:4px; font-size:12px; color:var(--text-secondary);';
+        countDiv.textContent = `${itemCount} ${itemCount === 1 ? 'item' : 'itens'}`;
+        contentDiv.appendChild(countDiv);
+        
+        // Subcategories
+        if (cat.subs && cat.subs.length > 0) {
+            const subDiv = document.createElement('div');
+            subDiv.style.cssText = 'margin-top:6px; padding:8px; background:rgba(255,255,255,0.03); border-radius:4px;';
+            
+            const subTitle = document.createElement('div');
+            subTitle.style.cssText = 'font-size:11px; color:var(--text-secondary); margin-bottom:4px;';
+            subTitle.textContent = 'Subcategorias:';
+            subDiv.appendChild(subTitle);
+            
+            cat.subs.forEach(sub => {
+                const subItemCount = inventory.filter(item => item.subcategory === sub).length;
+                const subRow = document.createElement('div');
+                subRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:4px 0;';
+                
+                const subName = document.createElement('span');
+                subName.style.fontSize = '12px';
+                subName.textContent = `→ ${sub}`;
+                subRow.appendChild(subName);
+                
+                const subActions = document.createElement('div');
+                subActions.style.cssText = 'display:flex; gap:8px; align-items:center;';
+                
+                const subCount = document.createElement('span');
+                subCount.style.cssText = 'font-size:11px; color:var(--text-secondary);';
+                subCount.textContent = `${subItemCount} ${subItemCount === 1 ? 'item' : 'itens'}`;
+                subActions.appendChild(subCount);
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.style.cssText = 'padding:2px 6px; font-size:11px; background:var(--danger-color); color:white; border:none; border-radius:3px; cursor:pointer;';
+                deleteBtn.textContent = '×';
+                deleteBtn.onclick = () => confirmDeleteSubCategory(cat.key, sub);
+                subActions.appendChild(deleteBtn);
+                
+                subRow.appendChild(subActions);
+                subDiv.appendChild(subRow);
+            });
+            
+            contentDiv.appendChild(subDiv);
+        }
+        
+        // Add subcategory button
+        const addSubBtn = document.createElement('button');
+        addSubBtn.className = 'btn-secondary';
+        addSubBtn.style.cssText = 'padding:4px 8px; font-size:11px; margin-top:8px;';
+        addSubBtn.textContent = '+ Adicionar Subcategoria';
+        addSubBtn.onclick = () => showAddSubCategoryInline(cat.key);
+        contentDiv.appendChild(addSubBtn);
+        
+        // Container for inline add
+        const inlineContainer = document.createElement('div');
+        inlineContainer.id = `subcategory-inline-${cat.key}`;
+        inlineContainer.style.marginTop = '8px';
+        contentDiv.appendChild(inlineContainer);
+        
+        flexContainer.appendChild(contentDiv);
+        
+        // Delete category button
+        const deleteCatBtn = document.createElement('button');
+        deleteCatBtn.className = 'btn-danger';
+        deleteCatBtn.style.cssText = 'padding:6px 12px; font-size:12px; margin-left:12px;';
+        deleteCatBtn.textContent = '🗑️ Eliminar';
+        deleteCatBtn.onclick = () => confirmDeleteCategory(cat.key);
+        flexContainer.appendChild(deleteCatBtn);
+        
+        settingItem.appendChild(flexContainer);
+        list.appendChild(settingItem);
+    });
+}
+
+function showAddLocationModalFromSettings() {
+    closeSettingsModal();
+    showAddLocationModal();
+}
+
+function showAddCategoryModalFromSettings() {
+    closeSettingsModal();
+    showAddCategoryModal();
+}
+
+function confirmDeleteLocation(locationName) {
+    const location = locations.find(l => l.name === locationName);
+    if (!location) return;
+    
+    // Check if location has items
+    const itemsInLocation = inventory.filter(item => 
+        item.locationParent === locationName
+    );
+    
+    if (itemsInLocation.length > 0) {
+        showConfirmDeleteModal(
+            `O local "${location.name}" tem ${itemsInLocation.length} ${itemsInLocation.length === 1 ? 'item' : 'itens'}. Tem certeza que deseja eliminar?`,
+            () => deleteLocation(locationName)
+        );
+    } else {
+        showConfirmDeleteModal(
+            `Tem certeza que deseja eliminar o local "${location.name}"?`,
+            () => deleteLocation(locationName)
+        );
+    }
+}
+
+function confirmDeleteCategory(categoryKey) {
+    const category = categories.find(c => c.key === categoryKey);
+    if (!category) return;
+    
+    // Check if category has items
+    const itemsInCategory = inventory.filter(item => 
+        item.category === categoryKey || (category.subs && category.subs.includes(item.subcategory))
+    );
+    
+    if (itemsInCategory.length > 0) {
+        showConfirmDeleteModal(
+            `A categoria "${category.label}" tem ${itemsInCategory.length} ${itemsInCategory.length === 1 ? 'item' : 'itens'}. Tem certeza que deseja eliminar?`,
+            () => deleteCategory(categoryKey)
+        );
+    } else {
+        showConfirmDeleteModal(
+            `Tem certeza que deseja eliminar a categoria "${category.label}"?`,
+            () => deleteCategory(categoryKey)
+        );
+    }
+}
+
+function deleteLocation(locationName) {
+    // Remove location
+    locations = locations.filter(l => l.name !== locationName);
+    
+    // Update items that reference this location
+    inventory.forEach(item => {
+        if (item.locationParent === locationName) {
+            item.locationParent = '';
+            item.locationChild = '';
+        }
+    });
+    
+    saveLocations();
+    saveInventory();
+    
+    // Update UI
+    renderLocationSettings();
+    populateLocationSelects();
+    populateLocationFilters();
+    renderItems();
+    
+    closeConfirmDeleteModal();
+}
+
+function deleteCategory(categoryKey) {
+    // Remove category
+    categories = categories.filter(c => c.key !== categoryKey);
+    
+    // Update items that reference this category
+    inventory.forEach(item => {
+        if (item.category === categoryKey) {
+            item.category = '';
+            item.subcategory = '';
+        }
+    });
+    
+    saveCategories();
+    saveInventory();
+    
+    // Update UI
+    renderCategorySettings();
+    populateCategorySelects();
+    renderItems();
+    
+    closeConfirmDeleteModal();
+}
+
+function showConfirmDeleteModal(message, callback) {
+    const modal = document.getElementById('confirmDeleteModal');
+    const messageEl = document.getElementById('confirmDeleteMessage');
+    
+    if (!modal || !messageEl) return;
+    
+    messageEl.textContent = message;
+    confirmDeleteCallback = callback;
+    
+    openModal(modal);
+}
+
+function closeConfirmDeleteModal() {
+    const modal = document.getElementById('confirmDeleteModal');
+    closeModalEl(modal);
+    confirmDeleteCallback = null;
+}
+
+function confirmDeleteAction() {
+    if (confirmDeleteCallback) {
+        confirmDeleteCallback();
+    }
+}
+
+// Add sub-location inline
+function showAddSubLocationInline(locationName) {
+    const safeName = locationName.replace(/\s+/g, '_');
+    const container = document.getElementById(`sublocation-inline-${safeName}`);
+    if (!container) {
+        console.error('Container não encontrado:', `sublocation-inline-${safeName}`);
+        return;
+    }
+    
+    // Prevent multiple inputs
+    if (container.querySelector('input')) return;
+    
+    container.innerHTML = `
+        <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="sublocation-input-${safeName}" placeholder="Nome do sub-local" 
+                style="flex:1; padding:6px; background:var(--input-bg); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px;">
+            <button class="btn-primary" style="padding:6px 12px; font-size:12px;">Gravar</button>
+            <button class="btn-secondary" style="padding:6px 12px; font-size:12px;">Cancelar</button>
+        </div>
+    `;
+    
+    // Add event listeners after creating elements
+    const saveBtn = container.querySelector('.btn-primary');
+    const cancelBtn = container.querySelector('.btn-secondary');
+    const input = document.getElementById(`sublocation-input-${safeName}`);
+    
+    if (saveBtn) saveBtn.onclick = () => saveSubLocation(locationName);
+    if (cancelBtn) cancelBtn.onclick = () => cancelSubLocation(locationName);
+    if (input) input.focus();
+}
+
+function saveSubLocation(locationName) {
+    console.log('saveSubLocation chamado com:', locationName);
+    const safeName = locationName.replace(/\s+/g, '_');
+    const input = document.getElementById(`sublocation-input-${safeName}`);
+    const name = input ? input.value.trim() : '';
+    
+    console.log('Input encontrado:', input, 'Nome:', name);
+    
+    if (!name) {
+        alert('Digite um nome para o sub-local');
+        return;
+    }
+    
+    const location = locations.find(l => l.name === locationName);
+    console.log('Location encontrada:', location);
+    
+    if (!location) {
+        alert('Local não encontrado');
+        return;
+    }
+    
+    // Check if sub-location already exists
+    if (!location.subs) location.subs = [];
+    if (location.subs.includes(name)) {
+        alert('Sub-local já existe');
+        return;
+    }
+    
+    // Add sub-location
+    location.subs.push(name);
+    
+    console.log('Sub-local adicionado:', name);
+    
+    saveLocations();
+    renderLocationSettings();
+    populateLocationSelects();
+    populateLocationFilters();
+}
+
+function cancelSubLocation(locationName) {
+    const safeName = locationName.replace(/\s+/g, '_');
+    const container = document.getElementById(`sublocation-inline-${safeName}`);
+    if (container) container.innerHTML = '';
+}
+
+// Add subcategory inline
+function showAddSubCategoryInline(categoryKey) {
+    const container = document.getElementById(`subcategory-inline-${categoryKey}`);
+    if (!container) {
+        console.error('Container não encontrado:', `subcategory-inline-${categoryKey}`);
+        return;
+    }
+    
+    // Prevent multiple inputs
+    if (container.querySelector('input')) return;
+    
+    container.innerHTML = `
+        <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="subcategory-input-${categoryKey}" placeholder="Nome da subcategoria" 
+                style="flex:1; padding:6px; background:var(--input-bg); color:var(--text-primary); border:1px solid var(--border-color); border-radius:4px;">
+            <button class="btn-primary" style="padding:6px 12px; font-size:12px;">Gravar</button>
+            <button class="btn-secondary" style="padding:6px 12px; font-size:12px;">Cancelar</button>
+        </div>
+    `;
+    
+    // Add event listeners after creating elements
+    const saveBtn = container.querySelector('.btn-primary');
+    const cancelBtn = container.querySelector('.btn-secondary');
+    const input = document.getElementById(`subcategory-input-${categoryKey}`);
+    
+    if (saveBtn) saveBtn.onclick = () => saveSubCategory(categoryKey);
+    if (cancelBtn) cancelBtn.onclick = () => cancelSubCategory(categoryKey);
+    if (input) input.focus();
+}
+
+function saveSubCategory(categoryKey) {
+    console.log('saveSubCategory chamado com:', categoryKey);
+    const input = document.getElementById(`subcategory-input-${categoryKey}`);
+    const name = input ? input.value.trim() : '';
+    
+    console.log('Input encontrado:', input, 'Nome:', name);
+    
+    if (!name) {
+        alert('Digite um nome para a subcategoria');
+        return;
+    }
+    
+    const category = categories.find(c => c.key === categoryKey);
+    console.log('Category encontrada:', category);
+    
+    if (!category) {
+        alert('Categoria não encontrada');
+        return;
+    }
+    
+    // Check if subcategory already exists
+    if (category.subs && category.subs.includes(name)) {
+        alert('Subcategoria já existe');
+        return;
+    }
+    
+    // Add subcategory
+    if (!category.subs) category.subs = [];
+    category.subs.push(name);
+    
+    console.log('Subcategoria adicionada:', name);
+    
+    saveCategories();
+    renderCategorySettings();
+    populateCategorySelects();
+}
+
+function cancelSubCategory(categoryKey) {
+    const container = document.getElementById(`subcategory-inline-${categoryKey}`);
+    if (container) container.innerHTML = '';
+}
+
+// Delete sub-location
+function confirmDeleteSubLocation(locationName, subLocationName) {
+    const location = locations.find(l => l.name === locationName);
+    if (!location || !location.subs) return;
+    
+    if (!location.subs.includes(subLocationName)) return;
+    
+    const itemsInSubLocation = inventory.filter(item => 
+        item.locationParent === locationName && item.locationChild === subLocationName
+    );
+    
+    if (itemsInSubLocation.length > 0) {
+        showConfirmDeleteModal(
+            `O sub-local "${subLocationName}" tem ${itemsInSubLocation.length} ${itemsInSubLocation.length === 1 ? 'item' : 'itens'}. Tem certeza que deseja eliminar?`,
+            () => deleteSubLocation(locationName, subLocationName)
+        );
+    } else {
+        showConfirmDeleteModal(
+            `Tem certeza que deseja eliminar o sub-local "${subLocationName}"?`,
+            () => deleteSubLocation(locationName, subLocationName)
+        );
+    }
+}
+
+function deleteSubLocation(locationName, subLocationName) {
+    const location = locations.find(l => l.name === locationName);
+    if (!location || !location.subs) return;
+    
+    // Remove sub-location
+    location.subs = location.subs.filter(s => s !== subLocationName);
+    
+    // Update items that reference this sub-location
+    inventory.forEach(item => {
+        if (item.locationParent === locationName && item.locationChild === subLocationName) {
+            item.locationChild = '';
+        }
+    });
+    
+    saveLocations();
+    saveInventory();
+    renderLocationSettings();
+    populateLocationSelects();
+    populateLocationFilters();
+    renderItems();
+    
+    closeConfirmDeleteModal();
+}
+
+// Delete subcategory
+function confirmDeleteSubCategory(categoryKey, subCategoryName) {
+    const category = categories.find(c => c.key === categoryKey);
+    if (!category) return;
+    
+    const itemsInSubCategory = inventory.filter(item => item.subcategory === subCategoryName);
+    
+    if (itemsInSubCategory.length > 0) {
+        showConfirmDeleteModal(
+            `A subcategoria "${subCategoryName}" tem ${itemsInSubCategory.length} ${itemsInSubCategory.length === 1 ? 'item' : 'itens'}. Tem certeza que deseja eliminar?`,
+            () => deleteSubCategory(categoryKey, subCategoryName)
+        );
+    } else {
+        showConfirmDeleteModal(
+            `Tem certeza que deseja eliminar a subcategoria "${subCategoryName}"?`,
+            () => deleteSubCategory(categoryKey, subCategoryName)
+        );
+    }
+}
+
+function deleteSubCategory(categoryKey, subCategoryName) {
+    const category = categories.find(c => c.key === categoryKey);
+    if (!category || !category.subs) return;
+    
+    // Remove subcategory
+    category.subs = category.subs.filter(s => s !== subCategoryName);
+    
+    // Update items that reference this subcategory
+    inventory.forEach(item => {
+        if (item.subcategory === subCategoryName) {
+            item.subcategory = '';
+        }
+    });
+    
+    saveCategories();
+    saveInventory();
+    renderCategorySettings();
+    populateCategorySelects();
+    renderItems();
+    
+    closeConfirmDeleteModal();
+}
+
+
+// Expose new functions globally
+window.showSettingsModal = showSettingsModal;
+window.closeSettingsModal = closeSettingsModal;
+window.switchSettingsTab = switchSettingsTab;
+window.showAddLocationModalFromSettings = showAddLocationModalFromSettings;
+window.showAddCategoryModalFromSettings = showAddCategoryModalFromSettings;
+window.confirmDeleteLocation = confirmDeleteLocation;
+window.confirmDeleteCategory = confirmDeleteCategory;
+window.showConfirmDeleteModal = showConfirmDeleteModal;
+window.closeConfirmDeleteModal = closeConfirmDeleteModal;
+window.confirmDeleteAction = confirmDeleteAction;
+window.showAddSubLocationInline = showAddSubLocationInline;
+window.saveSubLocation = saveSubLocation;
+window.cancelSubLocation = cancelSubLocation;
+window.showAddSubCategoryInline = showAddSubCategoryInline;
+window.saveSubCategory = saveSubCategory;
+window.cancelSubCategory = cancelSubCategory;
+window.confirmDeleteSubLocation = confirmDeleteSubLocation;
+window.confirmDeleteSubCategory = confirmDeleteSubCategory;

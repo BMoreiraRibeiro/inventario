@@ -47,8 +47,11 @@
                     <div class="stat-number" id="lowStock">0</div>
                     <div class="stat-label">Stock baixo</div>
                 </div>
-                <button onclick="window.gistSync.syncToGist()" class="sync-btn" title="Sincronizar com GitHub Gist">
+                <button onclick="window.firebaseSync.pullFromFirestore()" class="sync-btn" title="Sincronizar com Firebase">
                     🔄
+                </button>
+                <button onclick="showSettingsModal()" class="settings-btn" title="Configurações">
+                    ⚙️
                 </button>
             </div>
             <div class="sync-info" style="display:flex; align-items:center; gap:8px; margin-left:12px; font-size:11px;">
@@ -58,12 +61,8 @@
         </header>
 
         <div class="container">
-            <!-- Toolbar: manager buttons + Add Item -->
+            <!-- Toolbar: Add Item button only -->
             <div class="toolbar" style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
-                <button type="button" class="btn-secondary" onclick="showCategoryManager()">Gestor Categorias</button>
-                <button type="button" class="btn-secondary" onclick="showLocationManager()">Gestor Locais</button>
-                <button type="button" class="btn-secondary" onclick="exportData()">💾 Exportar JSON</button>
-                <button type="button" class="btn-secondary" onclick="importData()">📂 Importar JSON</button>
                 <button type="button" class="btn-primary" onclick="showAddItemModal()">➕ Adicionar Item</button>
             </div>
 
@@ -318,8 +317,88 @@
         </div>
     </div>
 
+    <!-- Modal: Settings -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <span class="close" onclick="closeSettingsModal()">&times;</span>
+            <h2>⚙️ Configurações</h2>
+            
+            <!-- Tabs -->
+            <div class="settings-tabs" style="display:flex; gap:8px; margin:16px 0; border-bottom:1px solid var(--border-color);">
+                <button class="settings-tab active" onclick="switchSettingsTab('import-export')">
+                    💾 Import/Export
+                </button>
+                <button class="settings-tab" onclick="switchSettingsTab('locations')">
+                    📍 Gestor de Locais
+                </button>
+                <button class="settings-tab" onclick="switchSettingsTab('categories')">
+                    🏷️ Gestor de Categorias
+                </button>
+            </div>
+            
+            <!-- Tab Content: Import/Export -->
+            <div id="tab-import-export" class="settings-tab-content active">
+                <h3>Backup e Restauro</h3>
+                <p style="color:var(--text-secondary); font-size:13px; margin-bottom:16px;">
+                    Exportar dados para backup ou importar de outro dispositivo.
+                </p>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn-secondary" onclick="exportData()" style="flex:1;">
+                        💾 Exportar JSON
+                    </button>
+                    <button class="btn-secondary" onclick="importData()" style="flex:1;">
+                        📂 Importar JSON
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Tab Content: Locations -->
+            <div id="tab-locations" class="settings-tab-content" style="display:none;">
+                <h3>Gestor de Locais</h3>
+                <p class="modal-error" id="locationSettingsError" style="color:var(--danger-color); margin-top:6px; display:none;"></p>
+                <div id="locationSettingsList" style="margin-top:16px;"></div>
+                <div style="margin-top:12px;">
+                    <button class="btn-secondary" onclick="showAddLocationModalFromSettings()">+ Novo Local</button>
+                </div>
+            </div>
+            
+            <!-- Tab Content: Categories -->
+            <div id="tab-categories" class="settings-tab-content" style="display:none;">
+                <h3>Gestor de Categorias</h3>
+                <p class="modal-error" id="categorySettingsError" style="color:var(--danger-color); margin-top:6px; display:none;"></p>
+                <div id="categorySettingsList" style="margin-top:16px;"></div>
+                <div style="margin-top:12px;">
+                    <button class="btn-secondary" onclick="showAddCategoryModalFromSettings()">+ Nova Categoria</button>
+                </div>
+            </div>
+            
+            <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+                <button class="btn-primary" onclick="closeSettingsModal()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmação de Exclusão -->
+    <div id="confirmDeleteModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" onclick="closeConfirmDeleteModal()">&times;</span>
+            <h2>⚠️ Confirmar Exclusão</h2>
+            <p id="confirmDeleteMessage" style="margin:16px 0;"></p>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
+                <button class="btn-secondary" onclick="closeConfirmDeleteModal()">Cancelar</button>
+                <button class="btn-danger" onclick="confirmDeleteAction()" style="background:var(--danger-color);">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK (v9 compat para facilitar migração) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    
     <script src="config.js"></script>
-    <script src="gist-sync.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="firebase-sync.js"></script>
     <script src="app.js"></script>
     <script>
         // Register service worker for PWA updates and notify user when a new version is available

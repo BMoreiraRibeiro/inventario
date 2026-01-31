@@ -171,7 +171,7 @@ header h1 {
 .header-stat.clickable:hover { background: var(--hover-bg); }
 .header-stat.clickable:active { background: var(--border-color); }
 
-.sync-btn {
+.sync-btn, .settings-btn {
     padding: 8px 12px;
     background: var(--card-bg);
     color: var(--text-primary);
@@ -187,13 +187,17 @@ header h1 {
     justify-content: center;
 }
 
-.sync-btn:hover {
+.sync-btn:hover, .settings-btn:hover {
     background: var(--hover-bg);
     border-color: var(--primary-color);
 }
 
 .sync-btn:active {
     transform: rotate(180deg);
+}
+
+.settings-btn:active {
+    transform: scale(0.95);
 }
 
 /* Sync Status Indicators */
@@ -988,4 +992,69 @@ option { white-space: normal; }
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 12px;
+}
+
+/* Settings Modal Tabs */
+.settings-tabs {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0;
+}
+
+.settings-tab {
+    padding: 10px 16px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    position: relative;
+    bottom: -1px;
+}
+
+.settings-tab:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.settings-tab.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.settings-tab-content {
+    padding: 20px 0;
+}
+
+.settings-tab-content h3 {
+    margin: 0 0 8px 0;
+    color: var(--text-primary);
+    font-size: 18px;
+}
+
+.btn-danger {
+    padding: 10px 20px;
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-danger:active {
+    transform: translateY(0);
 }
