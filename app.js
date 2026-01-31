@@ -69,25 +69,35 @@ function getCategoryMeta(key) {
    Inicialização
    ======================= */
 function initApp() {
-    // Forçar login ativo (como pediste)
-    isLoggedIn = true;
-    try { sessionStorage.setItem('isLoggedIn', 'true'); } catch(_) {}
-    showInventoryScreen();
+    // Verificar se já está logado
+    const wasLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+    if (wasLoggedIn) {
+        isLoggedIn = true;
+        showInventoryScreen();
+    } else {
+        isLoggedIn = false;
+        showLoginScreen();
+    }
 
     loadInventory();
     // listeners de login (mantidos por compatibilidade)
     const pwd = document.getElementById('passwordInput');
+    console.log('🔍 Password input element:', pwd ? 'found' : 'NOT FOUND');
     if (pwd) {
         pwd.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') login();
         });
+        console.log('✅ Keypress listener added to password input');
     }
     const loginBtn = document.getElementById('loginButton');
+    console.log('🔍 Login button element:', loginBtn ? 'found' : 'NOT FOUND');
     if (loginBtn) {
         loginBtn.addEventListener('click', (e) => {
+            console.log('👆 Button clicked!');
             e.preventDefault();
             login();
         });
+        console.log('✅ Click listener added to login button');
     }
 
     loadLocations();
@@ -147,18 +157,41 @@ function showInventoryScreen() {
 }
 
 function login() {
+    console.log('🔐 Login function called');
     const password = document.getElementById('passwordInput')?.value || '';
+    console.log('📝 Password input value:', password ? '***' : '(empty)');
     const errorElement = document.getElementById('loginError');
+    
+    console.log('🔍 CONFIG check:', typeof CONFIG !== 'undefined' ? 'exists' : 'missing');
+    if (typeof CONFIG !== 'undefined') {
+        console.log('🔍 CONFIG.PASSWORD:', CONFIG.PASSWORD ? 'exists' : 'missing');
+    }
+    
     if (typeof CONFIG === 'undefined' || !CONFIG.PASSWORD) {
+        console.error('❌ CONFIG not loaded');
         if (errorElement) errorElement.textContent = '❌ Erro: Ficheiro de configuração não carregado';
         return;
     }
+    
+    console.log('🔒 Comparing passwords...');
     if (password === CONFIG.PASSWORD) {
+        console.log('✅ Password correct!');
         isLoggedIn = true;
         try { sessionStorage.setItem('isLoggedIn', 'true'); } catch(_) {}
         if (errorElement) errorElement.textContent = '';
         showInventoryScreen();
+        
+        // Carregar dados do Firebase após login
+        if (window.firebaseSync && window.firebaseSync.loadFromFirestore) {
+            console.log('📥 Loading from Firestore...');
+            window.firebaseSync.loadFromFirestore();
+        }
+        if (window.firebaseSync && window.firebaseSync.startRealtimeSync) {
+            console.log('🔄 Starting realtime sync...');
+            window.firebaseSync.startRealtimeSync();
+        }
     } else {
+        console.log('❌ Password incorrect');
         if (errorElement) errorElement.textContent = '❌ Password incorreta';
         const pwd = document.getElementById('passwordInput');
         if (pwd) { pwd.value = ''; pwd.focus(); }
@@ -575,7 +608,6 @@ function showInlineAddSub(buttonEl) {
             // repopulate selects and pre-select the newly created sub
             populateCategorySelects(`${cat.key}||${name}`);
             container.remove();
-            showSyncStatus('Subcategoria adicionada', true);
         };
     } catch (err) {
         console.error('❌ Error showing inline add sub:', err);
@@ -701,7 +733,6 @@ function addSubcategoryInline(categoryKey) {
             saveCategories();
             populateCategoryManager();
             populateCategorySelects(`${cat.key}||${name}`);
-            showSyncStatus('Subcategoria adicionada', true);
         };
     } catch (err) {
         console.error('❌ addSubcategoryInline error:', err);
@@ -716,25 +747,11 @@ function removeSubcategory(categoryKey, subName) {
     saveCategories(); populateCategoryManager(); populateCategorySelects();
 }
 
-// Save changes made in the Category Manager: persist locally and optionally to Supabase
+// Save changes made in the Category Manager
 async function saveCategoryManagerChanges() {
     try {
         console.log('💾 [CATEGORIES] Saving categories from manager...');
         saveCategories();
-        // If supabase client available, sync categories
-        if (typeof syncCategoriesToCloud !== 'undefined' && typeof initSupabase !== 'undefined' && supabase) {
-            try {
-                await syncCategoriesToCloud();
-                showSyncStatus('✓ Categorias gravadas', true);
-                console.log('✅ [CATEGORIES] Synced to Supabase');
-            } catch (err) {
-                console.error('❌ [CATEGORIES] Error syncing categories to Supabase:', err);
-                showSyncStatus('✗ Erro ao gravar categorias', false);
-            }
-        } else {
-            console.log('⚠️ [CATEGORIES] Supabase not initialized - saved locally only');
-            showSyncStatus('Categorias gravadas localmente', true);
-        }
         populateCategoryManager();
         populateCategorySelects();
         closeCategoryManager();
@@ -744,24 +761,11 @@ async function saveCategoryManagerChanges() {
     }
 }
 
-// Save changes made in the Location Manager: persist locally and optionally to Supabase
+// Save changes made in the Location Manager
 async function saveLocationManagerChanges() {
     try {
         console.log('💾 [LOCATIONS] Saving locations from manager...');
         saveLocations();
-        if (typeof syncLocationsToCloud !== 'undefined' && typeof initSupabase !== 'undefined' && supabase) {
-            try {
-                await syncLocationsToCloud();
-                showSyncStatus('✓ Locais gravados', true);
-                console.log('✅ [LOCATIONS] Synced to Supabase');
-            } catch (err) {
-                console.error('❌ [LOCATIONS] Error syncing locations to Supabase:', err);
-                showSyncStatus('✗ Erro ao gravar locais', false);
-            }
-        } else {
-            console.log('⚠️ [LOCATIONS] Supabase not initialized - saved locally only');
-            showSyncStatus('Locais gravados localmente', true);
-        }
         populateLocationManager();
         populateLocationSelects();
         populateLocationFilters();
@@ -1026,23 +1030,6 @@ function confirmDeleteModal() {
         inventory = inventory.filter(i => i.id !== removedId);
         saveInventory();
         renderItems(); updateStats();
-        // Delete from Supabase as well if available
-        (async () => {
-            try {
-                if (typeof supabase !== 'undefined' && supabase) {
-                    const { error } = await supabase.from('inventory_items').delete().eq('id', removedId);
-                    if (error) {
-                        console.error('❌ [STOCK] Error deleting item from Supabase:', error);
-                        showSyncStatus('✗ Erro ao eliminar item na cloud', false);
-                    } else {
-                        console.log('✅ [STOCK] Item deleted from Supabase');
-                        showSyncStatus('Item eliminado (cloud)', true);
-                    }
-                }
-            } catch (e) {
-                console.error('❌ [STOCK] Exception deleting item from Supabase:', e);
-            }
-        })();
     } else if (ctx.type === 'category') {
         categories = categories.filter(c => c.key !== ctx.key);
         // os itens mantêm a category_key existente; opcionalmente poderias limpar
@@ -1380,36 +1367,10 @@ async function saveStockChange() {
 
         const oldQuantity = item.quantity;
         item.quantity = newQuantity;
-    item.updatedAt = Date.now();
+        item.updatedAt = Date.now();
 
         console.log(`📊 [STOCK] Quantity changed: ${oldQuantity} → ${newQuantity}`);
-
-        // Save to localStorage
         saveInventory();
-
-        // Save directly to Supabase
-        if (supabase) {
-            console.log('☁️ [STOCK] Syncing to Supabase...');
-            const { data, error } = await supabase
-                .from('inventory_items')
-                .update({ quantity: newQuantity })
-                .eq('id', item.id);
-
-            if (error) {
-                console.error('❌ [STOCK] Supabase update error:', error);
-                alert('Erro ao gravar na base de dados: ' + error.message);
-                // Revert local change
-                item.quantity = oldQuantity;
-                saveInventory();
-                renderItems();
-                updateStats();
-                return;
-            }
-
-            console.log('✅ [STOCK] Successfully saved to Supabase');
-        } else {
-            console.warn('⚠️ [STOCK] Supabase not available - saved locally only');
-        }
 
         // Update UI
         renderItems();

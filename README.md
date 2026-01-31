@@ -14,7 +14,8 @@ Uma aplicação web simples e responsiva para gerir o seu inventário pessoal de
 - 🔍 **Busca** - Encontre itens rapidamente por nome, localização ou notas
 - 📱 **Design responsivo** - Funciona perfeitamente em desktop, tablet e mobile
 - 💾 **Armazenamento local** - Dados salvos no navegador (localStorage)
-- ☁️ **Sincronização automática** - Backup e sync com GitHub Gist
+- ☁️ **Sincronização em tempo real** - Firebase Firestore com sync automático
+- ⚙️ **Gestores completos** - Gerir locais, sub-locais, categorias e sub-categorias
 - 📤 **Export/Import JSON** - Backup manual também disponível
 
 ## 🚀 Como Usar
@@ -22,80 +23,35 @@ Uma aplicação web simples e responsiva para gerir o seu inventário pessoal de
 ### Localmente
 
 1. Clone ou faça download deste repositório
-2. **IMPORTANTE**: Copie o ficheiro `config.example.js` para `config.js`:
-   ```bash
-   cp config.example.js config.js
-   ```
+2. **IMPORTANTE**: Copie o ficheiro `config.js.example` para `config.js` se necessário
 3. Edite `config.js` e defina a sua password
 4. Abra o ficheiro `index.html` num navegador web
 
-### Configurar a Password e GitHub Token
+### Configurar Firebase
 
-1. Copie `config.example.js` para `config.js` (se ainda não o fez)
-2. Abra o ficheiro `config.js`
-3. Altere o valor da propriedade `PASSWORD`:
-```javascript
-const CONFIG = {
-    PASSWORD: 'a_sua_password_secreta',
-    GITHUB_TOKEN: 'seu_token_github_aqui',  // Obtenha em https://github.com/settings/tokens
-    GIST_ID: ''  // Deixar vazio, será criado automaticamente
-};
-```
+A aplicação usa Firebase Firestore para sincronização em tempo real. A configuração já está incluída no `firebase-config.js`.
 
-**Nota**: O ficheiro `config.js` está no `.gitignore` para não expor a sua password no repositório público.
-
-### Como Obter o GitHub Token (para sincronização)
-
-A sincronização automática usa GitHub Gist para backup na cloud. Para configurar:
-
-1. Aceda a: https://github.com/settings/tokens
-2. Clique em **"Generate new token (classic)"**
-3. Dê um nome: `Inventário Pessoal`
-4. Marque apenas a permissão **`gist`**
-5. Clique em **"Generate token"**
-6. **Copie o token** (começa com `ghp_...`)
-7. Cole no `config.js` em `GITHUB_TOKEN`
-
-⚠️ **Importante**: Guarde o token em local seguro. Não o partilhe nem comite no git!
+**Segurança**: A autenticação usa hash SHA-256 da password. Cada utilizador tem o seu próprio documento no Firestore identificado pelo hash da sua password.
 
 ## 🌐 Deploy no GitHub Pages
 
 ### Passo 1: Criar Repositório
 
 1. Crie um novo repositório no GitHub
-2. **IMPORTANTE**: Antes de fazer upload, configure a sua password:
-   - Copie `config.example.js` para `config.js`
-   - Edite `config.js` com a sua password
-3. Faça upload de todos os ficheiros (o `config.js` não será incluído devido ao `.gitignore`):
-   - `index.html`
-   - `styles.css`
-   - `app.js`
-   - `config.example.js`
-   - `.gitignore`
-   - `README.md`
+2. Configure a sua password no ficheiro `config.js`
+3. Faça upload de todos os ficheiros
 
 ### Passo 2: Ativar GitHub Pages
 
 1. Vá às **Settings** do repositório
 2. No menu lateral, clique em **Pages**
-3. Em **Source**, selecione a branch `main` (ou `master`)
+3. Em **Source**, selecione a branch `main`
 4. Clique em **Save**
-5. **IMPORTANTE**: Crie o ficheiro `config.js` no GitHub:
-   - Vá para o repositório
-   - Clique em "Add file" → "Create new file"
-   - Nome do ficheiro: `config.js`
-   - Conteúdo:
-     ```javascript
-     const CONFIG = {
-         PASSWORD: 'a_sua_password_aqui'
-     };
-     ```
-   - Commit do ficheiro
-6. Aguarde alguns minutos e aceda ao URL fornecido
+5. Aguarde alguns minutos e aceda ao URL fornecido
 
 A sua aplicação estará disponível em: `https://<seu-usuario>.github.io/<nome-do-repositorio>/`
 
-**💡 Dica**: Não se esqueça de fazer backups regulares usando a função "Exportar JSON"!
+**💡 Dica**: A sincronização Firebase funciona automaticamente em qualquer dispositivo!
 
 ## 📱 Uso em Mobile/Android
 
@@ -117,13 +73,15 @@ A aplicação está otimizada para uso em dispositivos móveis:
 
 ```
 inventario-pessoal/
-├── index.html         # Estrutura HTML principal
-├── styles.css         # Estilos e design responsivo
-├── app.js             # Lógica da aplicação
-├── service-worker.js  # Service worker para PWA
-├── manifest.json      # Manifesto da PWA
-├── config.js          # Configurações (password)
-└── README.md          # Este ficheiro
+├── index.html          # Estrutura HTML principal
+├── styles.css          # Estilos e design responsivo
+├── app.js              # Lógica da aplicação
+├── firebase-config.js  # Configuração do Firebase
+├── firebase-sync.js    # Sincronização com Firestore
+├── service-worker.js   # Service worker para PWA
+├── manifest.json       # Manifesto da PWA
+├── config.js           # Configurações (password)
+└── README.md           # Este ficheiro
 ```
 
 ## 💡 Dicas de Uso
