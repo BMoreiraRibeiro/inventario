@@ -6,8 +6,6 @@ let locations = [];
 let categories = [];
 let pendingDeleteContext = null; // { type: 'item'|'category'|'location'|'sublocation', payload... }
 let modalZIndex = 1000;
-// Quando true, não dispara sync enquanto o modal está aberto; sincroniza 1x ao fechar
-window.modalSyncSuppressed = false;
 
 /* =======================
    Helpers de Modal
@@ -34,8 +32,6 @@ function openModal(el) {
 
 function closeModalEl(el) {
     if (!el) return;
-    const shouldTriggerSync = !!window.modalSyncSuppressed;
-    window.modalSyncSuppressed = false;
 
     el.classList.remove('active');
     el.style.zIndex = '';
@@ -45,17 +41,7 @@ function closeModalEl(el) {
         modalContent.style.maxHeight = '';
         modalContent.style.overflowY = '';
     }
-    if (shouldTriggerSync) {
-        setTimeout(() => {
-            try {
-                if (typeof syncToCloud !== 'undefined' && !isSyncing) syncToCloud();
-            } catch (e) { console.warn('Error triggering sync after modal close', e); }
-        }, 250);
-    }
 }
-
-// Debounce para pedir sync (REMOVIDO - não há mais auto-sync)
-// Sync manual apenas quando necessário
 
 // Helpers
 function slugify(s) {
@@ -116,12 +102,6 @@ function initApp() {
 
     renderItems();
     updateStats();
-
-    // Supabase
-    if (typeof initSupabase !== 'undefined' && initSupabase()) {
-        loadFromCloud();
-        // Removed auto-sync - sync only happens manually or on save
-    }
 }
 
 if (document.readyState === 'loading') {
@@ -218,7 +198,10 @@ function loadLocations() {
 }
 function saveLocations() {
     localStorage.setItem('locations', JSON.stringify(locations));
-    // Removed auto-sync
+    // Sincronizar com Gist (debounced)
+    if (window.gistSync && window.gistSync.isConfigured()) {
+        window.gistSync.debouncedSync();
+    }
 }
 function populateLocationSelects(selectedParent, selectedChild) {
     const parentSel = document.getElementById('itemLocationParent');
@@ -436,7 +419,10 @@ function loadCategories() {
 }
 function saveCategories() {
     localStorage.setItem('categories', JSON.stringify(categories));
-    // Removed auto-sync
+    // Sincronizar com Gist (debounced)
+    if (window.gistSync && window.gistSync.isConfigured()) {
+        window.gistSync.debouncedSync();
+    }
 }
 function populateCategorySelects(selected) {
     const filter = document.getElementById('categoryFilter');
@@ -939,10 +925,13 @@ function loadInventory() {
 function saveInventory() {
     try {
         localStorage.setItem('inventory', JSON.stringify(inventory));
+        // Sincronizar com Gist (debounced)
+        if (window.gistSync && window.gistSync.isConfigured()) {
+            window.gistSync.debouncedSync();
+        }
     } catch (e) {
         console.error('❌ [PERSIST] Could not persist inventory to localStorage:', e);
     }
-    // Removed auto-sync - only manual sync now
 }
 
 /* =======================
@@ -1447,6 +1436,91 @@ function updateStats() {
 }
 
 /* =======================
+   Export/Import JSON
+   ======================= */
+function exportData() {
+    try {
+        const data = {
+            version: '1.0',
+            exportDate: new Date().toISOString(),
+            inventory: inventory,
+            locations: locations,
+            categories: categories
+        };
+        
+        const jsonString = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `inventario-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert('✅ Dados exportados com sucesso!');
+    } catch (error) {
+        console.error('❌ Error exporting data:', error);
+        alert('❌ Erro ao exportar dados: ' + error.message);
+    }
+}
+
+function importData() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+                
+                // Validate structure
+                if (!data.inventory || !data.locations || !data.categories) {
+                    throw new Error('Formato de ficheiro inválido');
+                }
+                
+                // Confirm before overwriting
+                if (!confirm('⚠️ Esta ação irá substituir todos os dados atuais. Deseja continuar?')) {
+                    return;
+                }
+                
+                // Import data
+                inventory = data.inventory;
+                locations = data.locations;
+                categories = data.categories;
+                
+                // Save to localStorage
+                saveInventory();
+                saveLocations();
+                saveCategories();
+                
+                // Update UI
+                populateLocationSelects();
+                populateLocationFilters();
+                populateCategorySelects();
+                renderItems();
+                updateStats();
+                
+                alert('✅ Dados importados com sucesso!\nItens: ' + inventory.length + '\nLocais: ' + locations.length + '\nCategorias: ' + categories.length);
+            } catch (error) {
+                console.error('❌ Error importing data:', error);
+                alert('❌ Erro ao importar dados: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    };
+    
+    input.click();
+}
+
+/* =======================
    Expor funções globais (para onclick inline no HTML)
    ======================= */
 window.showAddItemModal = showAddItemModal;
@@ -1482,3 +1556,5 @@ window.closeStockEditModal = closeStockEditModal;
 window.saveStockChange = saveStockChange;
 window.logout = logout;
 window.login = login;
+window.exportData = exportData;
+window.importData = importData;

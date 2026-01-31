@@ -196,6 +196,32 @@ header h1 {
     transform: rotate(180deg);
 }
 
+/* Sync Status Indicators */
+#syncStatus {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+#syncStatus.sync-success {
+    color: var(--success-color);
+}
+
+#syncStatus.sync-error {
+    color: var(--danger-color);
+}
+
+#syncStatus.sync-syncing {
+    color: var(--warning-color);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 .logout-btn {
     padding: 8px 16px;
     background: var(--danger-color);

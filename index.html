@@ -47,11 +47,14 @@
                     <div class="stat-number" id="lowStock">0</div>
                     <div class="stat-label">Stock baixo</div>
                 </div>
-                <button onclick="syncToCloud()" class="sync-btn" title="Sincronizar com cloud">
+                <button onclick="window.gistSync.syncToGist()" class="sync-btn" title="Sincronizar com GitHub Gist">
                     🔄
                 </button>
             </div>
-            <div id="syncStatus" style="display:none; font-size:11px; color:var(--text-secondary); margin-left:12px;"></div>
+            <div class="sync-info" style="display:flex; align-items:center; gap:8px; margin-left:12px; font-size:11px;">
+                <span id="syncStatus" style="display:none;"></span>
+                <span id="lastSyncTime" style="display:none; color:var(--text-secondary);"></span>
+            </div>
         </header>
 
         <div class="container">
@@ -59,6 +62,8 @@
             <div class="toolbar" style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
                 <button type="button" class="btn-secondary" onclick="showCategoryManager()">Gestor Categorias</button>
                 <button type="button" class="btn-secondary" onclick="showLocationManager()">Gestor Locais</button>
+                <button type="button" class="btn-secondary" onclick="exportData()">💾 Exportar JSON</button>
+                <button type="button" class="btn-secondary" onclick="importData()">📂 Importar JSON</button>
                 <button type="button" class="btn-primary" onclick="showAddItemModal()">➕ Adicionar Item</button>
             </div>
 
@@ -314,8 +319,7 @@
     </div>
 
     <script src="config.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-sync.js"></script>
+    <script src="gist-sync.js"></script>
     <script src="app.js"></script>
     <script>
         // Register service worker for PWA updates and notify user when a new version is available
@@ -366,12 +370,5 @@
                 .catch(err => console.error('❌ Service worker registration failed:', err));
         }
     </script>
-    <!-- Blocking sync overlay -->
-    <div id="blockingSyncOverlay" style="display:none;">
-        <div class="blocking-sync-inner">
-            <div class="spinner" aria-hidden="true"></div>
-            <div class="blocking-sync-text">Sincronizando com a cloud…</div>
-        </div>
-    </div>
 </body>
 </html>

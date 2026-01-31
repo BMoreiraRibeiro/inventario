@@ -14,6 +14,8 @@ Uma aplicação web simples e responsiva para gerir o seu inventário pessoal de
 - 🔍 **Busca** - Encontre itens rapidamente por nome, localização ou notas
 - 📱 **Design responsivo** - Funciona perfeitamente em desktop, tablet e mobile
 - 💾 **Armazenamento local** - Dados salvos no navegador (localStorage)
+- ☁️ **Sincronização automática** - Backup e sync com GitHub Gist
+- 📤 **Export/Import JSON** - Backup manual também disponível
 
 ## 🚀 Como Usar
 
@@ -27,18 +29,34 @@ Uma aplicação web simples e responsiva para gerir o seu inventário pessoal de
 3. Edite `config.js` e defina a sua password
 4. Abra o ficheiro `index.html` num navegador web
 
-### Configurar a Password
+### Configurar a Password e GitHub Token
 
 1. Copie `config.example.js` para `config.js` (se ainda não o fez)
 2. Abra o ficheiro `config.js`
 3. Altere o valor da propriedade `PASSWORD`:
 ```javascript
 const CONFIG = {
-    PASSWORD: 'a_sua_password_secreta'
+    PASSWORD: 'a_sua_password_secreta',
+    GITHUB_TOKEN: 'seu_token_github_aqui',  // Obtenha em https://github.com/settings/tokens
+    GIST_ID: ''  // Deixar vazio, será criado automaticamente
 };
 ```
 
 **Nota**: O ficheiro `config.js` está no `.gitignore` para não expor a sua password no repositório público.
+
+### Como Obter o GitHub Token (para sincronização)
+
+A sincronização automática usa GitHub Gist para backup na cloud. Para configurar:
+
+1. Aceda a: https://github.com/settings/tokens
+2. Clique em **"Generate new token (classic)"**
+3. Dê um nome: `Inventário Pessoal`
+4. Marque apenas a permissão **`gist`**
+5. Clique em **"Generate token"**
+6. **Copie o token** (começa com `ghp_...`)
+7. Cole no `config.js` em `GITHUB_TOKEN`
+
+⚠️ **Importante**: Guarde o token em local seguro. Não o partilhe nem comite no git!
 
 ## 🌐 Deploy no GitHub Pages
 
@@ -77,6 +95,8 @@ const CONFIG = {
 
 A sua aplicação estará disponível em: `https://<seu-usuario>.github.io/<nome-do-repositorio>/`
 
+**💡 Dica**: Não se esqueça de fazer backups regulares usando a função "Exportar JSON"!
+
 ## 📱 Uso em Mobile/Android
 
 A aplicação está otimizada para uso em dispositivos móveis:
@@ -97,11 +117,13 @@ A aplicação está otimizada para uso em dispositivos móveis:
 
 ```
 inventario-pessoal/
-├── index.html      # Estrutura HTML principal
-├── styles.css      # Estilos e design responsivo
-├── app.js          # Lógica da aplicação
-├── config.js       # Configurações (password)
-└── README.md       # Este ficheiro
+├── index.html         # Estrutura HTML principal
+├── styles.css         # Estilos e design responsivo
+├── app.js             # Lógica da aplicação
+├── service-worker.js  # Service worker para PWA
+├── manifest.json      # Manifesto da PWA
+├── config.js          # Configurações (password)
+└── README.md          # Este ficheiro
 ```
 
 ## 💡 Dicas de Uso
@@ -118,6 +140,12 @@ inventario-pessoal/
 - Use o campo **Localização** para registar onde guarda cada item (ex: "Gaveta 3", "Caixa A")
 - Use **Notas** para informações adicionais (ex: especificações técnicas, data de compra)
 - Filtre por **Categoria** para ver apenas tipos específicos de items
+
+### Backup e Restauro
+
+- **Exportar Dados**: Clique em "📦 Exportar JSON" para fazer download de todos os seus dados num ficheiro JSON
+- **Importar Dados**: Clique em "📂 Importar JSON" para restaurar dados de um backup anterior
+- **Recomendação**: Faça backups regulares dos seus dados, especialmente antes de grandes alterações
 
 ### Busca
 
@@ -143,9 +171,36 @@ Para maior segurança:
 - **HTML5** - Estrutura
 - **CSS3** - Design e responsividade
 - **JavaScript (ES6+)** - Lógica da aplicação
-- **localStorage** - Armazenamento de dados
+- **localStorage** - Armazenamento de dados local
+- **Service Worker** - Funcionalidade offline (PWA)
 
-## 📄 Licença
+## � Backup e Sincronização
+
+Esta aplicação armazena todos os dados **localmente no seu navegador** (localStorage). Isto significa:
+
+✅ **Vantagens:**
+- Funciona 100% offline
+- Dados completamente privados
+- Sem custos de servidor
+- Sem problemas de pausas ou timeouts
+
+⚠️ **Importante:**
+- Os dados ficam apenas no navegador onde foram criados
+- Se limpar os dados do navegador, perderá o inventário
+- Não sincroniza automaticamente entre dispositivos
+
+🔄 **Para usar em múltiplos dispositivos:**
+1. No dispositivo A: Clique em "📦 Exportar JSON" e guarde o ficheiro
+2. Envie o ficheiro para o dispositivo B (email, cloud, USB, etc.)
+3. No dispositivo B: Clique em "📂 Importar JSON" e selecione o ficheiro
+
+💡 **Recomendação:** Faça backups regulares exportando os dados em JSON, especialmente:
+- Antes de trocar de navegador
+- Antes de limpar dados do navegador
+- Após adicionar muitos itens novos
+- Semanalmente (como precaução)
+
+## �📄 Licença
 
 Este projeto é de uso livre. Sinta-se à vontade para modificar e adaptar às suas necessidades.
 
